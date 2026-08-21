@@ -1,59 +1,34 @@
-# Chitty Kampany — v1 setup guide
+# Chitty Kampany
 
-This is the full source for the Google Sheets + Apps Script version described in `ChittyKampany-Brief.md`. Setting it up is a one-time, roughly 10-15 minute task — the same steps anyone else forking this project would follow.
+A small, open-source, low-tech tool for digitizing how a chit fund committee runs its daily collections and draws.
 
-## 1. Create the Sheet and open the script editor
+Chitty Kampany replaces the paper registers a field agent currently carries with a phone-based collection screen, and gives the committee a live, auditable ledger instead of reconciling notebooks by hand. It runs entirely on Google Sheets and Google Apps Script — no server, no hosting bill, and no IT team required to keep it alive.
 
-Go to `sheets.new` to create a blank Google Sheet, name it (e.g. "Chitty Kampany"), then open **Extensions → Apps Script**.
+## Why it's built this way
 
-## 2. Paste in the source files
+A chit fund committee runs several chits at once, each with its own members, installment amount, and schedule. Collection agents go door to door daily, taking cash or UPI payments, and at some interval a draw decides who receives that round's pot. Chitty Kampany's goal, in order, is digital, easy, and transparent — not a feature-rich fintech product. See [`docs/ChittyKampany-Brief.md`](docs/ChittyKampany-Brief.md) for the full product and architecture brief this project is built from.
 
-The Apps Script editor starts with one empty `Code.gs`. You need these files in the project — for each `.gs` file below, use the **+** next to "Files" → **Script**, name it (without `.gs` — Apps Script adds that itself), and paste the matching content. For `Index.html`, use **+** → **HTML** and name it `Index`.
+## How it works
 
-- `Constants.gs`
-- `DataAccess.gs`
-- `Auth.gs`
-- `ScheduleEngine.gs`
-- `ChitEngine.gs`
-- `Notifications.gs`
-- `Setup.gs`
-- `Code.gs` (replace the default empty one)
-- `Index.html`
+Every chit is its own configuration rather than a hardcoded formula: installment amount, collection frequency (daily, working-days-only, alternate days, weekly, or monthly), a configurable holiday calendar, a draw interval, and a commission rule are all set per chit. Round pools, draw eligibility, catch-up amounts for the rare late joiner, and defaulter tracking are all computed from that configuration.
 
-Then open **Project Settings** (gear icon) and enable "Show `appsscript.json` manifest file in editor," open that file, and replace its contents with the provided `appsscript.json`.
+## Getting started
 
-File paste order doesn't matter — Apps Script loads them all into one shared script regardless of order.
+The whole app lives in [`app/`](app) — plain Apps Script files and one HTML file, meant to be pasted into a Google Sheet's script editor. **[`app/README.md`](app/README.md) has the full step-by-step setup guide** (create the Sheet, paste in the files, run setup, deploy, share access). It takes about 10–15 minutes and needs nothing installed locally.
 
-## 3. Run setup once
+## Project layout
 
-In the toolbar, pick `setupSheets` from the function dropdown and click **Run**. The first time, Google will show an "unverified app" warning — this is expected for a script you just wrote yourself; click **Advanced → Go to (your project name) (unsafe) → Allow**. This creates all eight tabs with headers and dropdowns, and registers your own Google account as the first admin.
+- `app/` — the Apps Script source: data model constants, the schedule/chit calculation engine, notifications, access control, and the agent/admin web app UI.
+- `docs/` — the product and architecture brief this build follows.
 
-Open the **Config** tab and set the `CommitteeName` value to your committee's actual name.
+## Status
 
-## 4. Deploy as a web app
+v1: agent collection, chit onboarding, draws, a committee dashboard, role-based access, and email + tap-to-send WhatsApp notifications. Not yet handled: member self-service lookup, automatic WhatsApp sending, exportable reports, multi-committee deployments, and a member exiting a chit before winning.
 
-**Deploy → New deployment → gear icon → Web app.** Set "Execute as" to **User accessing the web app**, and "Who has access" to **Anyone with a Google account** (or "Anyone within [your organization]" if you're on Google Workspace, not a personal Gmail). Click **Deploy**, authorize again if prompted, and copy the **Web app URL** — that's the link everyone will use.
+## Contributing
 
-Whenever you edit the script later, you need to make a **new deployment version** (Deploy → Manage deployments → edit (pencil) → New version → Deploy) for changes to actually reach that URL — just saving the script isn't enough.
+This project is open source under the MIT license — issues and pull requests are welcome. If you're running your own chit fund and adapt this, a copy of your Sheet template plus the `app/` script is all you need; no shared infrastructure to coordinate with anyone else.
 
-## 5. Share the Sheet with every agent and admin
+## License
 
-This step is easy to miss and the app won't work without it: because the web app runs as *whoever opens it*, each agent and admin needs direct access to the underlying spreadsheet. Click **Share** on the Sheet itself (not the web app) and add every agent's and admin's Google account as an **Editor**.
-
-## 6. Register your team
-
-You're already in the **Users** tab as an admin from step 3. Add the rest of your committee either directly on that tab (Email, Name, Role = `ADMIN` or `AGENT`, Active = checked) or from inside the app once deployed, under **Admin → Users**. Only people listed here, with an active row, can use the app at all.
-
-## 7. Day-to-day use
-
-Open the Web app URL on a phone browser and use **Add to Home Screen** (Chrome, Android) so it behaves like an installed app icon. Agents land on **Collect**: pick a chit, pick a member, log the payment. Admins additionally see an **Admin** tab: create and enroll chits, activate them, record draws, handle the rare late-joiner case, and check the dashboard.
-
-Add any known festival/bank holidays under **Admin → Holidays** before they matter for a working-days chit — the schedule engine reads that list live.
-
-## What's deliberately not in v1
-
-Matches the brief: no member self-service lookup, no automatic WhatsApp sending (tap-to-send links only), no exports, single committee per deployment, and no explicit flow for a member dropping out of a chit before ever winning — handle that manually for now.
-
-## If something looks wrong
-
-The `Config`, `Users`, `Chits`, `Enrollments`, `Collections`, `Draws`, `Holidays`, and `Members` tabs are all plain data — you can always open the Sheet directly to see exactly what the app has recorded, which is the point of building it this way.
+MIT — see [`LICENSE`](LICENSE).

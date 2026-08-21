@@ -1,0 +1,13 @@
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# If you later manage this project with clasp (Apps Script CLI),
+# .clasp.json holds a script ID specific to your own copy — don't commit it.
+.clasp.json
+node_modules/
+*.log
