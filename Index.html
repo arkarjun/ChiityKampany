@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --ink: #16324f; --ink-soft: #4b6178; --line: #d7dee6; --bg: #f6f8fa;
+      --card: #ffffff; --good: #1c7c4d; --bad: #b3261e; --accent: #16324f;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: #1a1a1a; margin: 0; padding-bottom: 40px; }
+    header { background: var(--ink); color: #fff; padding: 14px 16px; }
+    header h1 { margin: 0; font-size: 18px; }
+    header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+    nav { display: flex; gap: 8px; padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    nav button { border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 8px 14px; border-radius: 20px; font-size: 14px; cursor: pointer; }
+    nav button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    main { padding: 16px; max-width: 720px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+    .card h2 { margin: 0 0 12px; font-size: 15px; color: var(--ink); }
+    .card h3 { margin: 16px 0 8px; font-size: 13px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
+    label { display: block; font-size: 13px; color: var(--ink-soft); margin: 10px 0 4px; }
+    select, input, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 15px; background: #fff; }
+    .row { display: flex; gap: 10px; }
+    .row > * { flex: 1; }
+    button.primary { margin-top: 14px; width: 100%; padding: 11px; background: var(--ink); color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+    button.primary:disabled { opacity: 0.5; }
+    button.secondary { padding: 7px 12px; background: #fff; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--ink); }
+    .msg { margin-top: 10px; font-size: 13px; padding: 8px 10px; border-radius: 6px; }
+    .msg.ok { background: #e6f4ec; color: var(--good); }
+    .msg.err { background: #fbe9e7; color: var(--bad); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+    th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat { background: #f0f4f8; border-radius: 8px; padding: 10px 12px; }
+    .stat .n { font-size: 20px; font-weight: 600; color: var(--ink); }
+    .stat .l { font-size: 12px; color: var(--ink-soft); }
+    .chit-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; }
+    .chit-item .name { font-weight: 600; }
+    .chit-item .meta { font-size: 12px; color: var(--ink-soft); }
+    .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eef2f6; color: var(--ink-soft); }
+    .hidden { display: none !important; }
+    a.wa-link { display: inline-block; margin-top: 8px; font-size: 13px; color: var(--good); }
+    .subnav { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+    .subnav button { flex: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Chitty Kampany</h1>
+  <div class="sub" id="whoami">Loading…</div>
+</header>
+
+<nav id="mainNav" class="hidden">
+  <button id="navCollect" class="active" onclick="showScreen('collect')">Collect</button>
+  <button id="navAdmin" class="hidden" onclick="showScreen('admin')">Admin</button>
+</nav>
+
+<main>
+  <div id="deniedScreen" class="card hidden">
+    <h2>Not registered</h2>
+    <p>Your Google account (<span id="deniedEmail"></span>) isn't set up in Chitty Kampany yet. Ask an admin to add you on the Users tab of the spreadsheet.</p>
+  </div>
+
+  <!-- ===================== COLLECT SCREEN ===================== -->
+  <div id="collectScreen" class="hidden">
+    <div class="card">
+      <h2>Log a payment</h2>
+      <label>Chit</label>
+      <select id="collectChit" onchange="onCollectChitChange()"></select>
+      <label>Member</label>
+      <select id="collectMember"></select>
+      <div class="row">
+        <div>
+          <label>Amount (₹)</label>
+          <input type="number" id="collectAmount" />
+        </div>
+        <div>
+          <label>Mode</label>
+          <select id="collectMode"><option value="CASH">Cash</option><option value="UPI">UPI</option></select>
+        </div>
+      </div>
+      <button class="primary" onclick="submitPayment()">Log payment</button>
+      <div id="collectMsg"></div>
+    </div>
+  </div>
+
+  <!-- ===================== ADMIN SCREEN ===================== -->
+  <div id="adminScreen" class="hidden">
+    <div class="subnav">
+      <button class="secondary active" onclick="showAdminTab('dashboard')">Dashboard</button>
+      <button class="secondary" onclick="showAdminTab('chits')">Chits</button>
+      <button class="secondary" onclick="showAdminTab('members')">Members</button>
+      <button class="secondary" onclick="showAdminTab('users')">Users</button>
+      <button class="secondary" onclick="showAdminTab('holidays')">Holidays</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="tab-dashboard" class="admin-tab">
+      <div class="card">
+        <h2>Today</h2>
+        <div class="stat-grid">
+          <div class="stat"><div class="n" id="dashToday">–</div><div class="l">Collected today (₹)</div></div>
+          <div class="stat"><div class="n" id="dashAgentCount">–</div><div class="l">Agents active today</div></div>
+        </div>
+        <h3>By agent today</h3>
+        <table id="dashByAgent"></table>
+      </div>
+      <div class="card">
+        <h2>Active chits</h2>
+        <table id="dashPerChit">
+          <tr><th>Chit</th><th>Collected / Expected</th><th>Defaulters</th></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Chits -->
+    <div id="tab-chits" class="admin-tab hidden">
+      <div class="card">
+        <h2>New chit</h2>
+        <label>Name</label><input id="ncName" placeholder="e.g. Chit A - Aug 2026" />
+        <div class="row">
+          <div><label>Installment amount per tick (₹)</label><input id="ncInstallment" type="number" /></div>
+          <div><label>Ticks per round (draw interval)</label><input id="ncRoundLength" type="number" /></div>
+        </div>
+        <div class="row">
+          <div><label>Collection frequency</label>
+            <select id="ncFrequency">
+              <option value="DAILY">Daily</option>
+              <option value="WORKING_DAYS">Working days only</option>
+              <option value="ALTERNATE_DAYS">Alternate days</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">Monthly</option>
+            </select>
+          </div>
+          <div><label>Planned participants</label><input id="ncParticipants" type="number" /></div>
+        </div>
+        <div class="row">
+          <div><label>Start date</label><input id="ncStartDate" type="date" /></div>
+          <div><label>Commission type</label>
+            <select id="ncCommissionType" onchange="onCommissionTypeChange()">
+              <option value="EXTRA_INSTALLMENT_TOTAL">One extra installment per member</option>
+              <option value="FLAT_PER_ROUND">Flat amount per round</option>
+              <option value="PERCENTAGE_OF_POOL">Percentage of pool</option>
+            </select>
+          </div>
+        </div>
+        <div id="ncCommissionValueWrap" class="hidden">
+          <label>Commission value (₹ flat, or % if percentage)</label>
+          <input id="ncCommissionValue" type="number" />
+        </div>
+        <button class="primary" onclick="submitNewChit()">Create chit (starts in Enrolling status)</button>
+        <div id="ncMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Existing chits</h2>
+        <div id="chitList"></div>
+      </div>
+
+      <div id="chitDetail" class="card hidden"></div>
+    </div>
+
+    <!-- Members -->
+    <div id="tab-members" class="admin-tab hidden">
+      <div class="card">
+        <h2>Add member</h2>
+        <label>Name</label><input id="mName" />
+        <div class="row">
+          <div><label>Phone</label><input id="mPhone" /></div>
+          <div><label>Email (optional)</label><input id="mEmail" /></div>
+        </div>
+        <button class="primary" onclick="submitNewMember()">Add member</button>
+        <div id="mMsg"></div>
+      </div>
+    </div>
+
+    <!-- Users -->
+    <div id="tab-users" class="admin-tab hidden">
+      <div class="card">
+        <h2>Add user (admin or agent)</h2>
+        <label>Google account email</label><input id="uEmail" />
+        <div class="row">
+          <div><label>Name</label><input id="uName" /></div>
+          <div><label>Role</label><select id="uRole"><option value="AGENT">Agent</option><option value="ADMIN">Admin</option></select></div>
+        </div>
+        <button class="primary" onclick="submitNewUser()">Add user</button>
+        <div id="uMsg"></div>
+      </div>
+      <div class="card">
+        <h2>Registered users</h2>
+        <table id="userList"><tr><th>Email</th><th>Name</th><th>Role</th><th>Active</th></tr></table>
+      </div>
+    </div>
+
+    <!-- Holidays -->
+    <div id="tab-holidays" class="admin-tab hidden">
+      <div class="card">
+        <h2>Add holiday</h2>
+        <div class="row">
+          <div><label>Date</label><input id="hDate" type="date" /></div>
+          <div><label>Description</label><input id="hDesc" placeholder="e.g. Diwali" /></div>
+        </div>
+        <button class="primary" onclick="submitNewHoliday()">Add holiday</button>
+        <div id="hMsg"></div>
+      </div>
+      <div class="card">
+        <h2>Holiday calendar</h2>
+        <table id="holidayList"><tr><th>Date</th><th>Description</th></tr></table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  let CURRENT_USER = null;
+
+  // Promise wrapper around google.script.run so async/await reads cleanly.
+  function api(fnName, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler((err) => reject(err))
+        [fnName](...args);
+    });
+  }
+
+  function showMsg(elId, text, ok) {
+    const el = document.getElementById(elId);
+    el.innerHTML = '<div class="msg ' + (ok ? 'ok' : 'err') + '">' + text + '</div>';
+  }
+
+  window.onload = async function () {
+    try {
+      CURRENT_USER = await api('whoAmI');
+    } catch (e) {
+      CURRENT_USER = { registered: false, email: '(unknown)' };
+    }
+
+    if (!CURRENT_USER.registered) {
+      document.getElementById('deniedEmail').textContent = CURRENT_USER.email;
+      document.getElementById('deniedScreen').classList.remove('hidden');
+      document.getElementById('whoami').textContent = CURRENT_USER.email + ' — not registered';
+      return;
+    }
+
+    document.getElementById('whoami').textContent = CURRENT_USER.name + ' (' + CURRENT_USER.role.toLowerCase() + ') — ' + CURRENT_USER.email;
+    document.getElementById('mainNav').classList.remove('hidden');
+
+    if (CURRENT_USER.role === 'ADMIN') {
+      document.getElementById('navAdmin').classList.remove('hidden');
+    }
+
+    showScreen('collect');
+    await loadCollectChits();
+  };
+
+  // ---------------- Screen switching ----------------
+  function showScreen(name) {
+    document.getElementById('collectScreen').classList.toggle('hidden', name !== 'collect');
+    document.getElementById('adminScreen').classList.toggle('hidden', name !== 'admin');
+    document.getElementById('navCollect').classList.toggle('active', name === 'collect');
+    document.getElementById('navAdmin').classList.toggle('active', name === 'admin');
+    if (name === 'admin') showAdminTab('dashboard');
+  }
+
+  function showAdminTab(name) {
+    document.querySelectorAll('.admin-tab').forEach(el => el.classList.add('hidden'));
+    document.getElementById('tab-' + name).classList.remove('hidden');
+    document.querySelectorAll('.subnav button').forEach(b => b.classList.remove('active'));
+    event && event.target && event.target.classList.add('active');
+    if (name === 'dashboard') loadDashboard();
+    if (name === 'chits') loadChitList();
+    if (name === 'users') loadUsers();
+    if (name === 'holidays') loadHolidays();
+  }
+
+  // ---------------- Collect screen ----------------
+  let collectChits = [];
+  async function loadCollectChits() {
+    collectChits = await api('listChitsForCollection');
+    const sel = document.getElementById('collectChit');
+    sel.innerHTML = collectChits.map(c => `<option value="${c.chitId}">${c.name}</option>`).join('');
+    if (collectChits.length) onCollectChitChange();
+  }
+
+  async function onCollectChitChange() {
+    const chitId = document.getElementById('collectChit').value;
+    const chit = collectChits.find(c => c.chitId === chitId);
+    document.getElementById('collectAmount').value = chit ? chit.installmentAmount : '';
+    const members = await api('listActiveMembersForChit', chitId);
+    document.getElementById('collectMember').innerHTML =
+      members.map(m => `<option value="${m.memberId}">${m.name}</option>`).join('') || '<option disabled>No active members</option>';
+  }
+
+  async function submitPayment() {
+    const chitId = document.getElementById('collectChit').value;
+    const memberId = document.getElementById('collectMember').value;
+    const amount = document.getElementById('collectAmount').value;
+    const mode = document.getElementById('collectMode').value;
+    if (!chitId || !memberId || !amount) { showMsg('collectMsg', 'Fill in all fields.', false); return; }
+    try {
+      const result = await api('logPayment', chitId, memberId, amount, mode);
+      let html = 'Payment logged.';
+      if (result.whatsAppLink) html += ` <a class="wa-link" target="_blank" href="${result.whatsAppLink}">Send WhatsApp receipt</a>`;
+      document.getElementById('collectMsg').innerHTML = '<div class="msg ok">' + html + '</div>';
+    } catch (e) {
+      showMsg('collectMsg', e.message || String(e), false);
+    }
+  }
+
+  // ---------------- Dashboard ----------------
+  async function loadDashboard() {
+    const d = await api('getDashboardSummary');
+    document.getElementById('dashToday').textContent = d.todayTotal;
+    document.getElementById('dashAgentCount').textContent = d.byAgent.length;
+    document.getElementById('dashByAgent').innerHTML =
+      '<tr><th>Agent</th><th>Collected (₹)</th></tr>' +
+      d.byAgent.map(a => `<tr><td>${a.email}</td><td>${a.amount}</td></tr>`).join('');
+    document.getElementById('dashPerChit').innerHTML =
+      '<tr><th>Chit</th><th>Collected / Expected</th><th>Defaulters</th></tr>' +
+      d.perChit.map(c => `<tr><td>${c.name}</td><td>₹${c.collectedToDate} / ₹${c.expectedToDate}</td><td>${c.defaulterCount}</td></tr>`).join('');
+  }
+
+  // ---------------- Chits ----------------
+  function onCommissionTypeChange() {
+    const type = document.getElementById('ncCommissionType').value;
+    document.getElementById('ncCommissionValueWrap').classList.toggle('hidden', type === 'EXTRA_INSTALLMENT_TOTAL');
+  }
+
+  async function submitNewChit() {
+    const params = {
+      name: document.getElementById('ncName').value,
+      installmentAmount: document.getElementById('ncInstallment').value,
+      roundLengthInTicks: document.getElementById('ncRoundLength').value,
+      frequencyType: document.getElementById('ncFrequency').value,
+      plannedParticipantCount: document.getElementById('ncParticipants').value,
+      startDate: document.getElementById('ncStartDate').value,
+      commissionType: document.getElementById('ncCommissionType').value,
+      commissionValue: document.getElementById('ncCommissionValue').value
+    };
+    if (!params.name || !params.installmentAmount || !params.roundLengthInTicks || !params.plannedParticipantCount || !params.startDate) {
+      showMsg('ncMsg', 'Fill in all fields.', false); return;
+    }
+    try {
+      await api('createChit', params);
+      showMsg('ncMsg', 'Chit created — now in Enrolling status. Add members to it below.', true);
+      loadChitList();
+    } catch (e) {
+      showMsg('ncMsg', e.message || String(e), false);
+    }
+  }
+
+  async function loadChitList() {
+    const chits = await api('listAllChits');
+    document.getElementById('chitList').innerHTML = chits.map(c => `
+      <div class="chit-item" onclick="openChitDetail('${c.ChitID}')">
+        <div class="name">${c.Name} <span class="pill">${c.Status}</span></div>
+        <div class="meta">₹${c.InstallmentAmount} · ${c.FrequencyType} · every ${c.RoundLengthInTicks} ticks · ${c.PlannedParticipantCount} planned</div>
+      </div>`).join('') || '<p>No chits yet.</p>';
+  }
+
+  async function openChitDetail(chitId) {
+    const chits = await api('listAllChits');
+    const chit = chits.find(c => c.ChitID === chitId);
+    const detail = document.getElementById('chitDetail');
+    detail.classList.remove('hidden');
+
+    let html = `<h2>${chit.Name} <span class="pill">${chit.Status}</span></h2>`;
+
+    if (chit.Status === 'ENROLLING') {
+      const available = await api('listMembersNotInChit', chitId);
+      html += `<h3>Enroll members</h3>
+        <select id="enrollMemberSelect">${available.map(m => `<option value="${m.MemberID}">${m.Name}</option>`).join('') || '<option disabled>No members available — add one under Members</option>'}</select>
+        <button class="secondary" style="margin-top:8px" onclick="doEnroll('${chitId}')">Enroll</button>
+        <div id="enrollMsg"></div>
+        <button class="primary" onclick="doActivate('${chitId}')">Activate chit (locks normal enrollment)</button>
+        <div id="activateMsg"></div>`;
+    }
+
+    if (chit.Status === 'ACTIVE') {
+      const available = await api('listMembersNotInChit', chitId);
+      const eligible = await api('getEligibleDrawMembers', chitId);
+      const pool = await api('previewNextRoundPool', chitId);
+      html += `
+        <h3>Late join (rare exception)</h3>
+        <select id="lateJoinMemberSelect">${available.map(m => `<option value="${m.MemberID}">${m.Name}</option>`).join('') || '<option disabled>No members available</option>'}</select>
+        <div class="row" style="margin-top:8px">
+          <select id="lateJoinType"><option value="VACANCY">Filling a vacancy</option><option value="EXTRA">Extra participant</option></select>
+          <input type="date" id="lateJoinDate" />
+        </div>
+        <button class="secondary" style="margin-top:8px" onclick="doLateJoin('${chitId}')">Preview catch-up amount &amp; enroll</button>
+        <div id="lateJoinMsg"></div>
+
+        <h3>Next draw</h3>
+        <p style="font-size:13px">Pool if drawn now: ₹${pool.pool} · Commission: ₹${pool.commission} · Payout: ₹${pool.netPayout}</p>
+        <select id="drawWinnerSelect">${eligible.map(m => `<option value="${m.memberId}">${m.name}</option>`).join('') || '<option disabled>No eligible members left</option>'}</select>
+        <button class="primary" onclick="doRecordDraw('${chitId}')">Record draw winner</button>
+        <div id="drawMsg"></div>`;
+    }
+
+    html += `<h3>Ledger</h3><div id="ledgerTable"><table><tr><th>Member</th><th>Status</th><th>Paid</th><th>Arrears</th></tr></table></div>`;
+    detail.innerHTML = html;
+
+    const ledger = await api('getChitLedger', chitId);
+    document.querySelector('#ledgerTable table').innerHTML =
+      '<tr><th>Member</th><th>Status</th><th>Paid (₹)</th><th>Arrears</th></tr>' +
+      ledger.map(r => `<tr><td>${r.name}</td><td>${r.status}</td><td>${r.totalPaid}</td><td>${r.arrearsCount || 0}</td></tr>`).join('');
+  }
+
+  async function doEnroll(chitId) {
+    const memberId = document.getElementById('enrollMemberSelect').value;
+    try { await api('enrollMemberInChit', chitId, memberId); showMsg('enrollMsg', 'Enrolled.', true); openChitDetail(chitId); }
+    catch (e) { showMsg('enrollMsg', e.message || String(e), false); }
+  }
+
+  async function doActivate(chitId) {
+    try { await api('activateChit', chitId); showMsg('activateMsg', 'Chit activated.', true); openChitDetail(chitId); }
+    catch (e) { showMsg('activateMsg', e.message || String(e), false); }
+  }
+
+  async function doLateJoin(chitId) {
+    const memberId = document.getElementById('lateJoinMemberSelect').value;
+    const joinType = document.getElementById('lateJoinType').value;
+    const joinDate = document.getElementById('lateJoinDate').value;
+    if (!memberId || !joinDate) { showMsg('lateJoinMsg', 'Pick a member and join date.', false); return; }
+    try {
+      const result = await api('lateJoinMember', chitId, memberId, joinType, joinDate);
+      showMsg('lateJoinMsg', `Enrolled. Catch-up amount due: ₹${result.catchupDue}. Log that payment from the Collect screen or record it here once received.`, true);
+      openChitDetail(chitId);
+    } catch (e) { showMsg('lateJoinMsg', e.message || String(e), false); }
+  }
+
+  async function doRecordDraw(chitId) {
+    const memberId = document.getElementById('drawWinnerSelect').value;
+    if (!memberId) { showMsg('drawMsg', 'No eligible member selected.', false); return; }
+    try {
+      const result = await api('recordDrawWinner', chitId, memberId);
+      let html = `Round ${result.roundNumber} recorded. Payout: ₹${result.netPayout}.`;
+      if (result.whatsAppLink) html += ` <a class="wa-link" target="_blank" href="${result.whatsAppLink}">Send WhatsApp result</a>`;
+      document.getElementById('drawMsg').innerHTML = '<div class="msg ok">' + html + '</div>';
+      openChitDetail(chitId);
+    } catch (e) { showMsg('drawMsg', e.message || String(e), false); }
+  }
+
+  // ---------------- Members ----------------
+  async function submitNewMember() {
+    const name = document.getElementById('mName').value;
+    const phone = document.getElementById('mPhone').value;
+    const email = document.getElementById('mEmail').value;
+    if (!name || !phone) { showMsg('mMsg', 'Name and phone are required.', false); return; }
+    try {
+      await api('createMember', { name, phone, email });
+      showMsg('mMsg', 'Member added.', true);
+      document.getElementById('mName').value = '';
+      document.getElementById('mPhone').value = '';
+      document.getElementById('mEmail').value = '';
+    } catch (e) { showMsg('mMsg', e.message || String(e), false); }
+  }
+
+  // ---------------- Users ----------------
+  async function submitNewUser() {
+    const email = document.getElementById('uEmail').value;
+    const name = document.getElementById('uName').value;
+    const role = document.getElementById('uRole').value;
+    if (!email || !name) { showMsg('uMsg', 'Email and name are required.', false); return; }
+    try {
+      await api('addUser', email, name, role);
+      showMsg('uMsg', 'User added.', true);
+      loadUsers();
+    } catch (e) { showMsg('uMsg', e.message || String(e), false); }
+  }
+
+  async function loadUsers() {
+    const users = await api('listUsers');
+    document.getElementById('userList').innerHTML =
+      '<tr><th>Email</th><th>Name</th><th>Role</th><th>Active</th></tr>' +
+      users.map(u => `<tr><td>${u.Email}</td><td>${u.Name}</td><td>${u.Role}</td><td>${u.Active}</td></tr>`).join('');
+  }
+
+  // ---------------- Holidays ----------------
+  async function submitNewHoliday() {
+    const date = document.getElementById('hDate').value;
+    const desc = document.getElementById('hDesc').value;
+    if (!date) { showMsg('hMsg', 'Pick a date.', false); return; }
+    try {
+      await api('addHoliday', date, desc);
+      showMsg('hMsg', 'Holiday added.', true);
+      loadHolidays();
+    } catch (e) { showMsg('hMsg', e.message || String(e), false); }
+  }
+
+  async function loadHolidays() {
+    const holidays = await api('listHolidays');
+    document.getElementById('holidayList').innerHTML =
+      '<tr><th>Date</th><th>Description</th></tr>' +
+      holidays.map(h => `<tr><td>${new Date(h.Date).toDateString()}</td><td>${h.Description}</td></tr>`).join('');
+  }
+</script>
+</body>
+</html>
