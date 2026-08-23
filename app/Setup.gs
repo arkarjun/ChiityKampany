@@ -32,6 +32,17 @@ function setupSheets() {
 }
 
 function ensureHeader_(sheet, headers) {
+  // Guarantee the sheet's grid is actually wide enough before touching it.
+  // If someone tidied the spreadsheet by manually deleting unused trailing
+  // columns (a normal thing to do), the sheet can end up narrower than the
+  // header list — and every getRange(row, col, numRows, headers.length) call
+  // in DataAccess.gs throws once the header list grows past that width. This
+  // is very likely why listAllChits() (Chits now has 14 columns, up from 12)
+  // started failing after the Deleted/CustomDays columns were added, while
+  // sheets whose column count didn't grow kept working.
+  if (sheet.getMaxColumns() < headers.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  }
   const existing = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
   const needsHeader = headers.some(function (h, i) { return existing[i] !== h; });
   if (needsHeader) {
