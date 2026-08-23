@@ -37,6 +37,22 @@ function requireRole_(allowedRoles) {
  * decide which screen to render — the server-side requireRole_() calls
  * are the real enforcement, this is just so the UI doesn't dead-end.
  */
+/**
+ * Guards against locking the committee out of its own Admin panel: refuses
+ * to deactivate or demote the last remaining active ADMIN. Call this before
+ * any change that could remove someone's admin status.
+ */
+function assertNotLastAdmin_(targetEmail) {
+  const activeAdmins = readAll_(SHEETS.USERS).filter(function (u) {
+    return u.Role === ROLE.ADMIN && u.Active === true;
+  });
+  const isOnlyAdmin = activeAdmins.length === 1 &&
+    String(activeAdmins[0].Email).toLowerCase() === String(targetEmail).toLowerCase();
+  if (isOnlyAdmin) {
+    throw new Error('Can\'t do that — ' + targetEmail + ' is the only active admin left. Add another admin first.');
+  }
+}
+
 function whoAmI() {
   const user = getCurrentUser_();
   if (!user) {

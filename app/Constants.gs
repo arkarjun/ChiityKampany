@@ -22,11 +22,16 @@ const SHEETS = {
 const COLUMNS = {
   Config: ['Key', 'Value'],
   Users: ['Email', 'Name', 'Role', 'Active'],
-  Members: ['MemberID', 'Name', 'Phone', 'Email', 'JoinedOn', 'Notes'],
+  // 'Deleted' is appended at the end of Members/Chits/Collections rather than
+  // inserted among the original columns: ensureHeader_() only ever rewrites
+  // row 1 (the header), so an existing sheet's data rows are never shifted.
+  // Appending keeps old rows positionally correct — they simply read as
+  // Deleted = '' (falsy, i.e. not deleted) until touched.
+  Members: ['MemberID', 'Name', 'Phone', 'Email', 'JoinedOn', 'Notes', 'Deleted'],
   Chits: [
     'ChitID', 'Name', 'InstallmentAmount', 'FrequencyType', 'RoundLengthInTicks',
     'PlannedParticipantCount', 'CommissionType', 'CommissionValue',
-    'StartDate', 'Status', 'CreatedBy', 'CreatedOn'
+    'StartDate', 'Status', 'CreatedBy', 'CreatedOn', 'CustomDays', 'Deleted'
   ],
   Enrollments: [
     'EnrollmentID', 'ChitID', 'MemberID', 'JoinDate', 'JoinType',
@@ -34,7 +39,7 @@ const COLUMNS = {
   ],
   Collections: [
     'CollectionID', 'ChitID', 'MemberID', 'Date', 'Amount', 'Mode',
-    'EntryType', 'AgentEmail', 'Timestamp', 'Notes'
+    'EntryType', 'AgentEmail', 'Timestamp', 'Notes', 'Deleted'
   ],
   Draws: [
     'DrawID', 'ChitID', 'RoundNumber', 'DrawDate', 'WinnerMemberID',
@@ -52,7 +57,11 @@ const FREQUENCY_TYPE = {
   WORKING_DAYS: 'WORKING_DAYS', // Mon-Sat, or Mon-Sat minus Holidays sheet
   ALTERNATE_DAYS: 'ALTERNATE_DAYS',
   WEEKLY: 'WEEKLY',
-  MONTHLY: 'MONTHLY'
+  MONTHLY: 'MONTHLY',
+  // A committee-chosen subset of weekdays, e.g. Mon/Wed/Fri only. Which days
+  // are picked lives per-chit in the Chits.CustomDays column, as a
+  // comma-separated list of JS Date.getDay() numbers (0=Sun ... 6=Sat).
+  CUSTOM_DAYS: 'CUSTOM_DAYS'
 };
 
 const CHIT_STATUS = { ENROLLING: 'ENROLLING', ACTIVE: 'ACTIVE', CLOSED: 'CLOSED' };

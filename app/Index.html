@@ -26,7 +26,8 @@
     .row > * { flex: 1; }
     button.primary { margin-top: 14px; width: 100%; padding: 11px; background: var(--ink); color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
     button.primary:disabled { opacity: 0.5; }
-    button.secondary { padding: 7px 12px; background: #fff; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--ink); }
+    button.secondary { padding: 7px 12px; background: #fff; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--ink); margin-right: 6px; margin-top: 6px; }
+    button.danger { color: var(--bad); border-color: var(--bad); }
     .msg { margin-top: 10px; font-size: 13px; padding: 8px 10px; border-radius: 6px; }
     .msg.ok { background: #e6f4ec; color: var(--good); }
     .msg.err { background: #fbe9e7; color: var(--bad); }
@@ -44,6 +45,21 @@
     a.wa-link { display: inline-block; margin-top: 8px; font-size: 13px; color: var(--good); }
     .subnav { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
     .subnav button { flex: none; }
+    .daytoggle-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .daytoggle { padding: 6px 10px; border: 1px solid var(--line); border-radius: 16px; background: #fff; color: var(--ink); font-size: 13px; cursor: pointer; }
+    .daytoggle.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .modal-overlaywrap { position: fixed; inset: 0; background: rgba(22,50,79,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+    .modal-box { background: #fff; border-radius: 12px; padding: 18px; max-width: 420px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .modal-box h3 { margin: 0 0 10px; font-size: 16px; color: var(--ink); }
+    .modal-body { font-size: 14px; color: #1a1a1a; line-height: 1.4; }
+    .modal-warning { margin-top: 10px; padding: 8px 10px; background: #fff4e5; color: #8a5300; border-radius: 6px; font-size: 13px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .modal-actions button { flex: 1; padding: 10px; border-radius: 8px; font-size: 14px; cursor: pointer; margin: 0; }
+    .modal-actions .primary { background: var(--ink); color: #fff; border: none; }
+    .modal-actions .secondary { background: #fff; border: 1px solid var(--line); color: var(--ink); }
+    .busy-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+    .spinner { width: 36px; height: 36px; border: 4px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -89,16 +105,17 @@
 
   <!-- ===================== ADMIN SCREEN ===================== -->
   <div id="adminScreen" class="hidden">
-    <div class="subnav">
-      <button class="secondary active" onclick="showAdminTab('dashboard')">Dashboard</button>
-      <button class="secondary" onclick="showAdminTab('chits')">Chits</button>
-      <button class="secondary" onclick="showAdminTab('members')">Members</button>
-      <button class="secondary" onclick="showAdminTab('users')">Users</button>
-      <button class="secondary" onclick="showAdminTab('holidays')">Holidays</button>
+    <div class="subnav" id="adminMainSubnav">
+      <button class="secondary active" data-tab="dashboard" onclick="showAdminTab('dashboard')">Dashboard</button>
+      <button class="secondary" data-tab="chits" onclick="showAdminTab('chits')">Chits</button>
+      <button class="secondary" data-tab="members" onclick="showAdminTab('members')">Members</button>
+      <button class="secondary" data-tab="users" onclick="showAdminTab('users')">Users</button>
+      <button class="secondary" data-tab="holidays" onclick="showAdminTab('holidays')">Holidays</button>
     </div>
 
     <!-- Dashboard -->
     <div id="tab-dashboard" class="admin-tab">
+      <div id="dashboardMsg"></div>
       <div class="card">
         <h2>Today</h2>
         <div class="stat-grid">
@@ -127,15 +144,28 @@
         </div>
         <div class="row">
           <div><label>Collection frequency</label>
-            <select id="ncFrequency">
+            <select id="ncFrequency" onchange="onFrequencyChange()">
               <option value="DAILY">Daily</option>
               <option value="WORKING_DAYS">Working days only</option>
               <option value="ALTERNATE_DAYS">Alternate days</option>
               <option value="WEEKLY">Weekly</option>
               <option value="MONTHLY">Monthly</option>
+              <option value="CUSTOM_DAYS">Custom days</option>
             </select>
           </div>
           <div><label>Planned participants</label><input id="ncParticipants" type="number" /></div>
+        </div>
+        <div id="ncCustomDaysWrap" class="hidden">
+          <label>Days of week (pick one or more)</label>
+          <div class="daytoggle-row">
+            <button type="button" class="daytoggle" data-day="1" onclick="this.classList.toggle('active')">Mon</button>
+            <button type="button" class="daytoggle" data-day="2" onclick="this.classList.toggle('active')">Tue</button>
+            <button type="button" class="daytoggle" data-day="3" onclick="this.classList.toggle('active')">Wed</button>
+            <button type="button" class="daytoggle" data-day="4" onclick="this.classList.toggle('active')">Thu</button>
+            <button type="button" class="daytoggle" data-day="5" onclick="this.classList.toggle('active')">Fri</button>
+            <button type="button" class="daytoggle" data-day="6" onclick="this.classList.toggle('active')">Sat</button>
+            <button type="button" class="daytoggle" data-day="0" onclick="this.classList.toggle('active')">Sun</button>
+          </div>
         </div>
         <div class="row">
           <div><label>Start date</label><input id="ncStartDate" type="date" /></div>
@@ -157,6 +187,12 @@
 
       <div class="card">
         <h2>Existing chits</h2>
+        <div class="subnav" id="chitStatusSubnav">
+          <button class="secondary active" data-status="ENROLLING" onclick="showChitStatusTab('ENROLLING')">Enrolling</button>
+          <button class="secondary" data-status="ACTIVE" onclick="showChitStatusTab('ACTIVE')">Active</button>
+          <button class="secondary" data-status="CLOSED" onclick="showChitStatusTab('CLOSED')">Closed</button>
+        </div>
+        <div id="chitListMsg"></div>
         <div id="chitList"></div>
       </div>
 
@@ -172,8 +208,15 @@
           <div><label>Phone</label><input id="mPhone" /></div>
           <div><label>Email (optional)</label><input id="mEmail" /></div>
         </div>
+        <label>Enroll into chit(s) now (optional — only chits still open for enrollment)</label>
+        <select id="mChits" multiple size="4"></select>
         <button class="primary" onclick="submitNewMember()">Add member</button>
         <div id="mMsg"></div>
+      </div>
+      <div class="card">
+        <h2>Existing members</h2>
+        <div id="membersListMsg"></div>
+        <table id="membersList"><tr><th>Name</th><th>Phone</th><th>Email</th><th></th></tr></table>
       </div>
     </div>
 
@@ -191,7 +234,8 @@
       </div>
       <div class="card">
         <h2>Registered users</h2>
-        <table id="userList"><tr><th>Email</th><th>Name</th><th>Role</th><th>Active</th></tr></table>
+        <div id="usersMsg"></div>
+        <table id="userList"><tr><th>Email</th><th>Name</th><th>Role</th><th>Active</th><th></th></tr></table>
       </div>
     </div>
 
@@ -208,21 +252,50 @@
       </div>
       <div class="card">
         <h2>Holiday calendar</h2>
+        <div id="holidaysMsg"></div>
         <table id="holidayList"><tr><th>Date</th><th>Description</th></tr></table>
       </div>
     </div>
   </div>
 </main>
 
+<!-- ===================== MODAL (confirm / info popups) ===================== -->
+<div id="modalOverlay" class="modal-overlaywrap hidden">
+  <div class="modal-box">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody" class="modal-body"></div>
+    <div id="modalWarning" class="modal-warning hidden"></div>
+    <div class="modal-actions">
+      <button class="secondary" id="modalCancelBtn">Cancel</button>
+      <button class="primary" id="modalOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== BUSY / LOADING OVERLAY ===================== -->
+<div id="busyOverlay" class="busy-overlay hidden"><div class="spinner"></div></div>
+
 <script>
   let CURRENT_USER = null;
 
-  // Promise wrapper around google.script.run so async/await reads cleanly.
+  // ---------------- Busy overlay + api() wrapper ----------------
+  // Every google.script.run call goes through here, so the loading overlay
+  // (and the click-blocking that comes with it) is automatic everywhere —
+  // no need to remember to wire it up per button, and it stops a double-tap
+  // from firing the same action twice while the first call is in flight.
+  let busyCount = 0;
+  function setBusy(isBusy) {
+    busyCount += isBusy ? 1 : -1;
+    if (busyCount < 0) busyCount = 0;
+    document.getElementById('busyOverlay').classList.toggle('hidden', busyCount === 0);
+  }
+
   function api(fnName, ...args) {
+    setBusy(true);
     return new Promise((resolve, reject) => {
       google.script.run
-        .withSuccessHandler(resolve)
-        .withFailureHandler((err) => reject(err))
+        .withSuccessHandler((r) => { setBusy(false); resolve(r); })
+        .withFailureHandler((err) => { setBusy(false); reject(err); })
         [fnName](...args);
     });
   }
@@ -230,6 +303,35 @@
   function showMsg(elId, text, ok) {
     const el = document.getElementById(elId);
     el.innerHTML = '<div class="msg ' + (ok ? 'ok' : 'err') + '">' + text + '</div>';
+  }
+
+  // ---------------- Modal (confirm / info) ----------------
+  let modalResolve = null;
+  function openModal(opts) {
+    document.getElementById('modalTitle').textContent = opts.title || '';
+    document.getElementById('modalBody').innerHTML = opts.bodyHtml || '';
+    const warnEl = document.getElementById('modalWarning');
+    if (opts.warningHtml) { warnEl.innerHTML = opts.warningHtml; warnEl.classList.remove('hidden'); }
+    else { warnEl.innerHTML = ''; warnEl.classList.add('hidden'); }
+    document.getElementById('modalCancelBtn').classList.toggle('hidden', opts.showCancel === false);
+    document.getElementById('modalOkBtn').textContent = opts.okText || 'OK';
+    document.getElementById('modalOverlay').classList.remove('hidden');
+    return new Promise((resolve) => { modalResolve = resolve; });
+  }
+  function closeModal(result) {
+    document.getElementById('modalOverlay').classList.add('hidden');
+    if (modalResolve) { const r = modalResolve; modalResolve = null; r(result); }
+  }
+  document.getElementById('modalOkBtn').onclick = () => closeModal(true);
+  document.getElementById('modalCancelBtn').onclick = () => closeModal(false);
+
+  /** Pre-submit "are you sure" popup. Resolves true on Confirm, false on Cancel. */
+  function confirmDialog(title, bodyHtml, warningHtml) {
+    return openModal({ title, bodyHtml, warningHtml, showCancel: true, okText: 'Confirm' });
+  }
+  /** Post-action result popup (success or error). OK-only, resolves when dismissed. */
+  function infoDialog(title, bodyHtml) {
+    return openModal({ title, bodyHtml, showCancel: false, okText: 'OK' });
   }
 
   window.onload = async function () {
@@ -269,10 +371,14 @@
   function showAdminTab(name) {
     document.querySelectorAll('.admin-tab').forEach(el => el.classList.add('hidden'));
     document.getElementById('tab-' + name).classList.remove('hidden');
-    document.querySelectorAll('.subnav button').forEach(b => b.classList.remove('active'));
-    event && event.target && event.target.classList.add('active');
+    // Highlight by the tab's own data-tab attribute rather than the browser's
+    // implicit `event` object — that global is unreliable inside the
+    // sandboxed iframe Apps Script serves this page in, which is why tab
+    // highlighting previously stopped working after the first click.
+    document.querySelectorAll('#adminMainSubnav button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     if (name === 'dashboard') loadDashboard();
     if (name === 'chits') loadChitList();
+    if (name === 'members') loadMembersList();
     if (name === 'users') loadUsers();
     if (name === 'holidays') loadHolidays();
   }
@@ -301,27 +407,47 @@
     const amount = document.getElementById('collectAmount').value;
     const mode = document.getElementById('collectMode').value;
     if (!chitId || !memberId || !amount) { showMsg('collectMsg', 'Fill in all fields.', false); return; }
+
+    const chit = collectChits.find(c => c.chitId === chitId);
+    const memberSel = document.getElementById('collectMember');
+    const memberName = memberSel.selectedOptions.length ? memberSel.selectedOptions[0].textContent : '';
+
+    let warning = '';
+    try {
+      const dup = await api('checkPaymentDuplicate', chitId, memberId, amount);
+      if (dup.duplicate) warning = '⚠️ A payment of this exact amount for this member in this chit was already logged today. Log it again?';
+    } catch (e) { /* if the duplicate check itself fails, don't block the payment on it */ }
+
+    const ok = await confirmDialog('Log this payment?', `₹${amount} (${mode}) for <strong>${memberName}</strong> in ${chit ? chit.name : 'this chit'}.`, warning);
+    if (!ok) return;
+
+    document.getElementById('collectMsg').innerHTML = '';
     try {
       const result = await api('logPayment', chitId, memberId, amount, mode);
       let html = 'Payment logged.';
       if (result.whatsAppLink) html += ` <a class="wa-link" target="_blank" href="${result.whatsAppLink}">Send WhatsApp receipt</a>`;
-      document.getElementById('collectMsg').innerHTML = '<div class="msg ok">' + html + '</div>';
+      await infoDialog('Payment logged', html);
     } catch (e) {
-      showMsg('collectMsg', e.message || String(e), false);
+      await infoDialog('Could not log payment', e.message || String(e));
     }
   }
 
   // ---------------- Dashboard ----------------
   async function loadDashboard() {
-    const d = await api('getDashboardSummary');
-    document.getElementById('dashToday').textContent = d.todayTotal;
-    document.getElementById('dashAgentCount').textContent = d.byAgent.length;
-    document.getElementById('dashByAgent').innerHTML =
-      '<tr><th>Agent</th><th>Collected (₹)</th></tr>' +
-      d.byAgent.map(a => `<tr><td>${a.email}</td><td>${a.amount}</td></tr>`).join('');
-    document.getElementById('dashPerChit').innerHTML =
-      '<tr><th>Chit</th><th>Collected / Expected</th><th>Defaulters</th></tr>' +
-      d.perChit.map(c => `<tr><td>${c.name}</td><td>₹${c.collectedToDate} / ₹${c.expectedToDate}</td><td>${c.defaulterCount}</td></tr>`).join('');
+    document.getElementById('dashboardMsg').innerHTML = '';
+    try {
+      const d = await api('getDashboardSummary');
+      document.getElementById('dashToday').textContent = d.todayTotal;
+      document.getElementById('dashAgentCount').textContent = d.byAgent.length;
+      document.getElementById('dashByAgent').innerHTML =
+        '<tr><th>Agent</th><th>Collected (₹)</th></tr>' +
+        d.byAgent.map(a => `<tr><td>${a.email}</td><td>${a.amount}</td></tr>`).join('');
+      document.getElementById('dashPerChit').innerHTML =
+        '<tr><th>Chit</th><th>Collected / Expected</th><th>Defaulters</th></tr>' +
+        d.perChit.map(c => `<tr><td>${c.name}</td><td>₹${c.collectedToDate} / ₹${c.expectedToDate}</td><td>${c.defaulterCount}</td></tr>`).join('');
+    } catch (e) {
+      showMsg('dashboardMsg', 'Could not load the dashboard: ' + (e.message || String(e)), false);
+    }
   }
 
   // ---------------- Chits ----------------
@@ -330,17 +456,27 @@
     document.getElementById('ncCommissionValueWrap').classList.toggle('hidden', type === 'EXTRA_INSTALLMENT_TOTAL');
   }
 
+  function onFrequencyChange() {
+    const val = document.getElementById('ncFrequency').value;
+    document.getElementById('ncCustomDaysWrap').classList.toggle('hidden', val !== 'CUSTOM_DAYS');
+  }
+
   async function submitNewChit() {
+    const freq = document.getElementById('ncFrequency').value;
     const params = {
       name: document.getElementById('ncName').value,
       installmentAmount: document.getElementById('ncInstallment').value,
       roundLengthInTicks: document.getElementById('ncRoundLength').value,
-      frequencyType: document.getElementById('ncFrequency').value,
+      frequencyType: freq,
       plannedParticipantCount: document.getElementById('ncParticipants').value,
       startDate: document.getElementById('ncStartDate').value,
       commissionType: document.getElementById('ncCommissionType').value,
       commissionValue: document.getElementById('ncCommissionValue').value
     };
+    if (freq === 'CUSTOM_DAYS') {
+      params.customDays = Array.from(document.querySelectorAll('#ncCustomDaysWrap .daytoggle.active')).map(b => Number(b.dataset.day));
+      if (!params.customDays.length) { showMsg('ncMsg', 'Pick at least one day of the week for a custom-days chit.', false); return; }
+    }
     if (!params.name || !params.installmentAmount || !params.roundLengthInTicks || !params.plannedParticipantCount || !params.startDate) {
       showMsg('ncMsg', 'Fill in all fields.', false); return;
     }
@@ -353,22 +489,160 @@
     }
   }
 
+  let allChitsCache = [];
+  let chitStatusFilter = 'ENROLLING';
+
+  function showChitStatusTab(status) {
+    chitStatusFilter = status;
+    document.querySelectorAll('#chitStatusSubnav button[data-status]').forEach(b => b.classList.toggle('active', b.dataset.status === status));
+    renderChitList();
+  }
+
   async function loadChitList() {
-    const chits = await api('listAllChits');
+    document.getElementById('chitListMsg').innerHTML = '';
+    try {
+      allChitsCache = await api('listAllChits');
+      renderChitList();
+    } catch (e) {
+      document.getElementById('chitList').innerHTML = '';
+      showMsg('chitListMsg', 'Could not load chits: ' + (e.message || String(e)), false);
+    }
+  }
+
+  function renderChitList() {
+    const chits = allChitsCache.filter(c => c.Status === chitStatusFilter);
     document.getElementById('chitList').innerHTML = chits.map(c => `
       <div class="chit-item" onclick="openChitDetail('${c.ChitID}')">
         <div class="name">${c.Name} <span class="pill">${c.Status}</span></div>
         <div class="meta">₹${c.InstallmentAmount} · ${c.FrequencyType} · every ${c.RoundLengthInTicks} ticks · ${c.PlannedParticipantCount} planned</div>
-      </div>`).join('') || '<p>No chits yet.</p>';
+      </div>`).join('') || '<p>No ' + chitStatusFilter.toLowerCase() + ' chits.</p>';
+  }
+
+  const WEEKDAYS = [
+    { val: 1, label: 'Mon' }, { val: 2, label: 'Tue' }, { val: 3, label: 'Wed' }, { val: 4, label: 'Thu' },
+    { val: 5, label: 'Fri' }, { val: 6, label: 'Sat' }, { val: 0, label: 'Sun' }
+  ];
+
+  function toDateInputValue_(d) {
+    const dt = new Date(d);
+    const yyyy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function renderEditChitForm(chit, locked) {
+    const customDaysArr = String(chit.CustomDays || '').split(',').filter(s => s !== '').map(Number);
+    const dayToggles = WEEKDAYS.map(w => `<button type="button" class="daytoggle ${customDaysArr.includes(w.val) ? 'active' : ''}" data-day="${w.val}" onclick="this.classList.toggle('active')">${w.label}</button>`).join('');
+    const lockedNote = locked ? '<p style="font-size:12px;color:var(--ink-soft)">This chit already has enrolled members, so only the name can be changed here — the schedule and money fields are locked to protect figures already computed against them.</p>' : '';
+    const financialFields = locked ? '' : `
+      <div class="row">
+        <div><label>Installment amount per tick (₹)</label><input id="ecInstallment" type="number" value="${chit.InstallmentAmount}" /></div>
+        <div><label>Ticks per round</label><input id="ecRoundLength" type="number" value="${chit.RoundLengthInTicks}" /></div>
+      </div>
+      <div class="row">
+        <div><label>Frequency</label>
+          <select id="ecFrequency" onchange="onEditFrequencyChange()">
+            <option value="DAILY">Daily</option>
+            <option value="WORKING_DAYS">Working days only</option>
+            <option value="ALTERNATE_DAYS">Alternate days</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">Monthly</option>
+            <option value="CUSTOM_DAYS">Custom days</option>
+          </select>
+        </div>
+        <div><label>Planned participants</label><input id="ecParticipants" type="number" value="${chit.PlannedParticipantCount}" /></div>
+      </div>
+      <div id="ecCustomDaysWrap" class="hidden">
+        <label>Days of week</label>
+        <div class="daytoggle-row">${dayToggles}</div>
+      </div>
+      <div class="row">
+        <div><label>Start date</label><input id="ecStartDate" type="date" value="${toDateInputValue_(chit.StartDate)}" /></div>
+        <div><label>Commission type</label>
+          <select id="ecCommissionType">
+            <option value="EXTRA_INSTALLMENT_TOTAL">One extra installment per member</option>
+            <option value="FLAT_PER_ROUND">Flat amount per round</option>
+            <option value="PERCENTAGE_OF_POOL">Percentage of pool</option>
+          </select>
+        </div>
+      </div>
+      <label>Commission value</label><input id="ecCommissionValue" type="number" value="${chit.CommissionValue}" />`;
+    return `<div class="card">
+      <h3>Edit chit</h3>
+      ${lockedNote}
+      <label>Name</label><input id="ecName" value="${chit.Name}" />
+      ${financialFields}
+      <button class="primary" onclick="submitEditChit('${chit.ChitID}', ${locked})">Save changes</button>
+      <div id="ecMsg"></div>
+    </div>`;
+  }
+
+  function onEditFrequencyChange() {
+    const val = document.getElementById('ecFrequency').value;
+    document.getElementById('ecCustomDaysWrap').classList.toggle('hidden', val !== 'CUSTOM_DAYS');
+  }
+
+  function toggleEditChit(chitId) {
+    const wrap = document.getElementById('editChitWrap-' + chitId);
+    if (!wrap.classList.contains('hidden')) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+    const chit = allChitsCache.find(c => c.ChitID === chitId);
+    const locked = wrap.dataset.locked === 'true';
+    wrap.innerHTML = renderEditChitForm(chit, locked);
+    wrap.classList.remove('hidden');
+    if (!locked) {
+      document.getElementById('ecFrequency').value = chit.FrequencyType;
+      document.getElementById('ecCommissionType').value = chit.CommissionType;
+      onEditFrequencyChange();
+    }
+  }
+
+  async function submitEditChit(chitId, locked) {
+    const patch = { name: document.getElementById('ecName').value };
+    if (!locked) {
+      patch.installmentAmount = document.getElementById('ecInstallment').value;
+      patch.roundLengthInTicks = document.getElementById('ecRoundLength').value;
+      patch.frequencyType = document.getElementById('ecFrequency').value;
+      patch.plannedParticipantCount = document.getElementById('ecParticipants').value;
+      patch.startDate = document.getElementById('ecStartDate').value;
+      patch.commissionType = document.getElementById('ecCommissionType').value;
+      patch.commissionValue = document.getElementById('ecCommissionValue').value;
+      if (patch.frequencyType === 'CUSTOM_DAYS') {
+        patch.customDays = Array.from(document.querySelectorAll('#ecCustomDaysWrap .daytoggle.active')).map(b => Number(b.dataset.day));
+      }
+    }
+    try {
+      await api('updateChitDetails', chitId, patch);
+      showMsg('ecMsg', 'Saved.', true);
+      openChitDetail(chitId);
+    } catch (e) { showMsg('ecMsg', e.message || String(e), false); }
+  }
+
+  async function doDeleteChit(chitId) {
+    const ok = await confirmDialog('Delete this chit?', 'This hides it everywhere in the app — dropdowns, lists, the dashboard. The row and its full history stay in the Sheet untouched; this can only be undone there directly.');
+    if (!ok) return;
+    try {
+      await api('deleteChit', chitId);
+      document.getElementById('chitDetail').classList.add('hidden');
+      loadChitList();
+    } catch (e) { await infoDialog('Could not delete', e.message || String(e)); }
   }
 
   async function openChitDetail(chitId) {
-    const chits = await api('listAllChits');
-    const chit = chits.find(c => c.ChitID === chitId);
+    allChitsCache = await api('listAllChits');
+    const chit = allChitsCache.find(c => c.ChitID === chitId);
     const detail = document.getElementById('chitDetail');
     detail.classList.remove('hidden');
 
-    let html = `<h2>${chit.Name} <span class="pill">${chit.Status}</span></h2>`;
+    const ledger = await api('getChitLedger', chitId);
+    const locked = ledger.length > 0;
+
+    let html = `<h2>${chit.Name} <span class="pill">${chit.Status}</span></h2>
+      <div>
+        <button class="secondary" onclick="toggleEditChit('${chitId}')">Edit details</button>
+        <button class="secondary danger" onclick="doDeleteChit('${chitId}')">Delete chit</button>
+      </div>
+      <div id="editChitWrap-${chitId}" class="hidden" data-locked="${locked}"></div>`;
 
     if (chit.Status === 'ENROLLING') {
       const available = await api('listMembersNotInChit', chitId);
@@ -402,62 +676,139 @@
     }
 
     html += `<h3>Ledger</h3><div id="ledgerTable"><table><tr><th>Member</th><th>Status</th><th>Paid</th><th>Arrears</th></tr></table></div>`;
+    html += `<h3>Payment records</h3><div id="paymentRecords"></div>`;
     detail.innerHTML = html;
 
-    const ledger = await api('getChitLedger', chitId);
     document.querySelector('#ledgerTable table').innerHTML =
       '<tr><th>Member</th><th>Status</th><th>Paid (₹)</th><th>Arrears</th></tr>' +
       ledger.map(r => `<tr><td>${r.name}</td><td>${r.status}</td><td>${r.totalPaid}</td><td>${r.arrearsCount || 0}</td></tr>`).join('');
+
+    loadPaymentRecords(chitId);
+  }
+
+  async function loadPaymentRecords(chitId) {
+    const rows = await api('listCollectionsForChit', chitId);
+    document.getElementById('paymentRecords').innerHTML = rows.length ? `
+      <table><tr><th>Date</th><th>Member</th><th>Amount</th><th>Mode</th><th></th></tr>
+      ${rows.map(r => `<tr><td>${r.date}</td><td>${r.memberName}</td><td>₹${r.amount}</td><td>${r.mode}${r.entryType === 'CATCHUP' ? ' (catch-up)' : ''}</td><td><button class="secondary danger" onclick="doDeletePayment('${r.collectionId}','${chitId}')">Delete</button></td></tr>`).join('')}
+      </table>` : '<p style="font-size:13px">No payments logged yet.</p>';
+  }
+
+  async function doDeletePayment(collectionId, chitId) {
+    const ok = await confirmDialog('Delete this payment record?', 'It stops counting toward totals and arrears from now on — the row stays in the Sheet.');
+    if (!ok) return;
+    try {
+      await api('deleteCollection', collectionId);
+      openChitDetail(chitId);
+    } catch (e) { await infoDialog('Could not delete', e.message || String(e)); }
   }
 
   async function doEnroll(chitId) {
-    const memberId = document.getElementById('enrollMemberSelect').value;
-    try { await api('enrollMemberInChit', chitId, memberId); showMsg('enrollMsg', 'Enrolled.', true); openChitDetail(chitId); }
-    catch (e) { showMsg('enrollMsg', e.message || String(e), false); }
+    const sel = document.getElementById('enrollMemberSelect');
+    const memberId = sel.value;
+    const name = sel.selectedOptions.length ? sel.selectedOptions[0].textContent : '';
+    const ok = await confirmDialog('Enroll this member?', `${name} into this chit.`);
+    if (!ok) return;
+    try { await api('enrollMemberInChit', chitId, memberId); await infoDialog('Enrolled', name + ' is now enrolled.'); openChitDetail(chitId); }
+    catch (e) { await infoDialog('Could not enroll', e.message || String(e)); }
   }
 
   async function doActivate(chitId) {
-    try { await api('activateChit', chitId); showMsg('activateMsg', 'Chit activated.', true); openChitDetail(chitId); }
-    catch (e) { showMsg('activateMsg', e.message || String(e), false); }
+    const ok = await confirmDialog('Activate this chit?', 'This locks normal enrollment — after this, new members can only join through the late-join flow.');
+    if (!ok) return;
+    try { await api('activateChit', chitId); await infoDialog('Activated', 'Chit is now active.'); openChitDetail(chitId); }
+    catch (e) { await infoDialog('Could not activate', e.message || String(e)); }
   }
 
   async function doLateJoin(chitId) {
-    const memberId = document.getElementById('lateJoinMemberSelect').value;
+    const sel = document.getElementById('lateJoinMemberSelect');
+    const memberId = sel.value;
     const joinType = document.getElementById('lateJoinType').value;
     const joinDate = document.getElementById('lateJoinDate').value;
     if (!memberId || !joinDate) { showMsg('lateJoinMsg', 'Pick a member and join date.', false); return; }
+    const name = sel.selectedOptions.length ? sel.selectedOptions[0].textContent : '';
+    let catchupPreview = null;
+    try { catchupPreview = await api('previewCatchupAmount', chitId, joinDate); } catch (e) { /* fall through, still let them confirm */ }
+    const ok = await confirmDialog('Enroll this late joiner?', `${name} joining on ${joinDate} as ${joinType === 'VACANCY' ? 'a vacancy fill' : 'an extra participant'}.` + (catchupPreview !== null ? ` Catch-up due: ₹${catchupPreview}.` : ''));
+    if (!ok) return;
     try {
       const result = await api('lateJoinMember', chitId, memberId, joinType, joinDate);
-      showMsg('lateJoinMsg', `Enrolled. Catch-up amount due: ₹${result.catchupDue}. Log that payment from the Collect screen or record it here once received.`, true);
+      await infoDialog('Enrolled', `Catch-up amount due: ₹${result.catchupDue}. Log that payment from the Collect screen or record it here once received.`);
       openChitDetail(chitId);
-    } catch (e) { showMsg('lateJoinMsg', e.message || String(e), false); }
+    } catch (e) { await infoDialog('Could not enroll', e.message || String(e)); }
   }
 
   async function doRecordDraw(chitId) {
-    const memberId = document.getElementById('drawWinnerSelect').value;
+    const sel = document.getElementById('drawWinnerSelect');
+    const memberId = sel.value;
     if (!memberId) { showMsg('drawMsg', 'No eligible member selected.', false); return; }
+    const name = sel.selectedOptions.length ? sel.selectedOptions[0].textContent : '';
+    const pool = await api('previewNextRoundPool', chitId);
+    const ok = await confirmDialog('Record this draw winner?', `${name} wins this round. Payout: ₹${pool.netPayout}. This can't be undone from the app.`);
+    if (!ok) return;
     try {
       const result = await api('recordDrawWinner', chitId, memberId);
       let html = `Round ${result.roundNumber} recorded. Payout: ₹${result.netPayout}.`;
       if (result.whatsAppLink) html += ` <a class="wa-link" target="_blank" href="${result.whatsAppLink}">Send WhatsApp result</a>`;
-      document.getElementById('drawMsg').innerHTML = '<div class="msg ok">' + html + '</div>';
+      await infoDialog('Draw recorded', html);
       openChitDetail(chitId);
-    } catch (e) { showMsg('drawMsg', e.message || String(e), false); }
+    } catch (e) { await infoDialog('Could not record draw', e.message || String(e)); }
   }
 
   // ---------------- Members ----------------
+  async function loadMemberEnrollOptions() {
+    const chits = allChitsCache.length ? allChitsCache : await api('listAllChits');
+    const enrolling = chits.filter(c => c.Status === 'ENROLLING');
+    document.getElementById('mChits').innerHTML = enrolling.map(c => `<option value="${c.ChitID}">${c.Name}</option>`).join('') || '<option disabled>No chits open for enrollment</option>';
+  }
+
+  async function loadMembersList() {
+    document.getElementById('membersListMsg').innerHTML = '';
+    try {
+      const members = await api('listMembers');
+      document.getElementById('membersList').innerHTML =
+        '<tr><th>Name</th><th>Phone</th><th>Email</th><th></th></tr>' +
+        members.map(m => `<tr><td>${m.Name}</td><td>${m.Phone}</td><td>${m.Email || ''}</td><td><button class="secondary danger" onclick="doDeleteMember('${m.MemberID}')">Delete</button></td></tr>`).join('');
+    } catch (e) {
+      showMsg('membersListMsg', 'Could not load members: ' + (e.message || String(e)), false);
+    }
+    loadMemberEnrollOptions();
+  }
+
+  async function doDeleteMember(memberId) {
+    const ok = await confirmDialog('Delete this member?', 'They drop out of dropdowns and new collection screens — their record and payment history stay in the Sheet.');
+    if (!ok) return;
+    try { await api('deleteMember', memberId); loadMembersList(); }
+    catch (e) { await infoDialog('Could not delete', e.message || String(e)); }
+  }
+
   async function submitNewMember() {
     const name = document.getElementById('mName').value;
     const phone = document.getElementById('mPhone').value;
     const email = document.getElementById('mEmail').value;
+    const chitIds = Array.from(document.getElementById('mChits').selectedOptions).map(o => o.value).filter(v => v);
     if (!name || !phone) { showMsg('mMsg', 'Name and phone are required.', false); return; }
+
+    let warning = '';
     try {
-      await api('createMember', { name, phone, email });
-      showMsg('mMsg', 'Member added.', true);
+      const dup = await api('checkMemberDuplicate', phone);
+      if (dup.duplicate) warning = `⚠️ A member with this phone number already exists: <strong>${dup.existingName}</strong>. Add anyway?`;
+    } catch (e) { /* if the duplicate check itself fails, don't block adding the member on it */ }
+
+    const ok = await confirmDialog('Add this member?', `${name} · ${phone}` + (chitIds.length ? ` · enrolling into ${chitIds.length} chit(s)` : ''), warning);
+    if (!ok) return;
+
+    try {
+      const result = await api('createMember', { name, phone, email, chitIds });
+      const failed = (result.enrollments || []).filter(e => !e.ok);
+      let msg = 'Member added.';
+      if (failed.length) msg += ' Note: could not enroll into ' + failed.length + ' chit(s) — ' + failed.map(f => f.error).join('; ');
+      await infoDialog('Done', msg);
       document.getElementById('mName').value = '';
       document.getElementById('mPhone').value = '';
       document.getElementById('mEmail').value = '';
-    } catch (e) { showMsg('mMsg', e.message || String(e), false); }
+      loadMembersList();
+    } catch (e) { await infoDialog('Could not add member', e.message || String(e)); }
   }
 
   // ---------------- Users ----------------
@@ -474,10 +825,36 @@
   }
 
   async function loadUsers() {
-    const users = await api('listUsers');
-    document.getElementById('userList').innerHTML =
-      '<tr><th>Email</th><th>Name</th><th>Role</th><th>Active</th></tr>' +
-      users.map(u => `<tr><td>${u.Email}</td><td>${u.Name}</td><td>${u.Role}</td><td>${u.Active}</td></tr>`).join('');
+    document.getElementById('usersMsg').innerHTML = '';
+    try {
+      const users = await api('listUsers');
+      document.getElementById('userList').innerHTML =
+        '<tr><th>Email</th><th>Name</th><th>Role</th><th>Active</th><th></th></tr>' +
+        users.map(u => `<tr>
+          <td>${u.Email}</td><td>${u.Name}</td><td>${u.Role}</td><td>${u.Active}</td>
+          <td>
+            <button class="secondary" onclick="doToggleUserActive('${u.Email}', ${u.Active === true})">${u.Active === true ? 'Deactivate' : 'Activate'}</button>
+            <button class="secondary" onclick="doToggleUserRole('${u.Email}', '${u.Role}')">${u.Role === 'ADMIN' ? 'Make Agent' : 'Make Admin'}</button>
+          </td>
+        </tr>`).join('');
+    } catch (e) {
+      showMsg('usersMsg', 'Could not load users: ' + (e.message || String(e)), false);
+    }
+  }
+
+  async function doToggleUserActive(email, currentlyActive) {
+    const ok = await confirmDialog(currentlyActive ? 'Deactivate this user?' : 'Activate this user?', email);
+    if (!ok) return;
+    try { await api('setUserActive', email, !currentlyActive); loadUsers(); }
+    catch (e) { await infoDialog('Could not update', e.message || String(e)); }
+  }
+
+  async function doToggleUserRole(email, currentRole) {
+    const newRole = currentRole === 'ADMIN' ? 'AGENT' : 'ADMIN';
+    const ok = await confirmDialog('Change role?', `${email} will become ${newRole === 'ADMIN' ? 'an Admin' : 'an Agent'}.`);
+    if (!ok) return;
+    try { await api('setUserRole', email, newRole); loadUsers(); }
+    catch (e) { await infoDialog('Could not update', e.message || String(e)); }
   }
 
   // ---------------- Holidays ----------------
@@ -493,10 +870,15 @@
   }
 
   async function loadHolidays() {
-    const holidays = await api('listHolidays');
-    document.getElementById('holidayList').innerHTML =
-      '<tr><th>Date</th><th>Description</th></tr>' +
-      holidays.map(h => `<tr><td>${new Date(h.Date).toDateString()}</td><td>${h.Description}</td></tr>`).join('');
+    document.getElementById('holidaysMsg').innerHTML = '';
+    try {
+      const holidays = await api('listHolidays');
+      document.getElementById('holidayList').innerHTML =
+        '<tr><th>Date</th><th>Description</th></tr>' +
+        holidays.map(h => `<tr><td>${new Date(h.Date).toDateString()}</td><td>${h.Description}</td></tr>`).join('');
+    } catch (e) {
+      showMsg('holidaysMsg', 'Could not load holidays: ' + (e.message || String(e)), false);
+    }
   }
 </script>
 </body>

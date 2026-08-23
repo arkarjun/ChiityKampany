@@ -31,17 +31,30 @@ function listMembersById_() {
 function listChitsForCollection() {
   requireRole_([ROLE.AGENT, ROLE.ADMIN]);
   return readAll_(SHEETS.CHITS)
-    .filter(function (c) { return c.Status === CHIT_STATUS.ACTIVE; })
+    .filter(function (c) { return c.Status === CHIT_STATUS.ACTIVE && !c.Deleted; })
     .map(function (c) { return { chitId: c.ChitID, name: c.Name, installmentAmount: c.InstallmentAmount }; });
 }
 
 function listActiveMembersForChit(chitId) {
   requireRole_([ROLE.AGENT, ROLE.ADMIN]);
   const membersById = listMembersById_();
-  return getActiveEnrollments_(chitId).map(function (e) {
-    const m = membersById[e.MemberID] || {};
-    return { memberId: e.MemberID, name: m.Name, phone: m.Phone };
+  return getActiveEnrollments_(chitId)
+    .filter(function (e) { const m = membersById[e.MemberID]; return m && !m.Deleted; })
+    .map(function (e) {
+      const m = membersById[e.MemberID] || {};
+      return { memberId: e.MemberID, name: m.Name, phone: m.Phone };
+    });
+}
+
+/** Duplicate check for the pre-submit warning: a payment already logged today for this exact chit+member+amount. */
+function checkPaymentDuplicate(chitId, memberId, amount) {
+  requireRole_([ROLE.AGENT, ROLE.ADMIN]);
+  const todayStr = formatDate_(new Date());
+  const match = readAll_(SHEETS.COLLECTIONS).find(function (c) {
+    return c.ChitID === chitId && c.MemberID === memberId && Number(c.Amount) === Number(amount) &&
+      c.EntryType === ENTRY_TYPE.INSTALLMENT && !c.Deleted && formatDate_(c.Date) === todayStr;
   });
+  return { duplicate: !!match };
 }
 
 function logPayment(chitId, memberId, amount, mode) {
@@ -73,7 +86,14 @@ function logPayment(chitId, memberId, amount, mode) {
 
 function listAllChits() {
   requireRole_([ROLE.ADMIN]);
-  return readAll_(SHEETS.CHITS);
+  return readAll_(SHEETS.CHITS).filter(function (c) { return !c.Deleted; });
+}
+
+/** Comma-joins an array of weekday numbers (0=Sun..6=Sat) for storage; passes through a string as-is. */
+function encodeCustomDays_(customDays) {
+  if (!customDays) return '';
+  if (Array.isArray(customDays)) return customDays.map(Number).join(',');
+  return String(customDays);
 }
 
 function createChit(params) {
@@ -91,15 +111,70 @@ function createChit(params) {
     StartDate: new Date(params.startDate),
     Status: CHIT_STATUS.ENROLLING,
     CreatedBy: user.Email,
-    CreatedOn: new Date()
+    CreatedOn: new Date(),
+    CustomDays: encodeCustomDays_(params.customDays),
+    Deleted: false
   });
   return { chitId: chitId };
+}
+
+/**
+ * Edits an existing chit's details. Once a chit has any enrollment at all,
+ * the financial/schedule fields are locked (changing them after members have
+ * joined would silently corrupt every pool and ledger figure already
+ * computed against the old configuration) — only the display Name stays
+ * editable. This is enforced here, not just hidden in the UI, since the
+ * client can't be trusted to honor it.
+ */
+function updateChitDetails(chitId, patch) {
+  requireRole_([ROLE.ADMIN]);
+  const chit = getChitById_(chitId);
+  if (!chit) throw new Error('Chit not found.');
+  const hasEnrollments = getAllEnrollmentsForChit_(chitId).length > 0;
+
+  const safePatch = { Name: patch.name };
+  if (!hasEnrollments) {
+    if (patch.installmentAmount !== undefined) safePatch.InstallmentAmount = Number(patch.installmentAmount);
+    if (patch.frequencyType !== undefined) safePatch.FrequencyType = patch.frequencyType;
+    if (patch.roundLengthInTicks !== undefined) safePatch.RoundLengthInTicks = Number(patch.roundLengthInTicks);
+    if (patch.plannedParticipantCount !== undefined) safePatch.PlannedParticipantCount = Number(patch.plannedParticipantCount);
+    if (patch.commissionType !== undefined) safePatch.CommissionType = patch.commissionType;
+    if (patch.commissionValue !== undefined) safePatch.CommissionValue = Number(patch.commissionValue || 0);
+    if (patch.startDate !== undefined) safePatch.StartDate = new Date(patch.startDate);
+    if (patch.customDays !== undefined) safePatch.CustomDays = encodeCustomDays_(patch.customDays);
+  }
+  const updated = updateRow_(SHEETS.CHITS, 'ChitID', chitId, safePatch);
+  if (!updated) throw new Error('Chit not found.');
+  return { ok: true, fieldsLocked: hasEnrollments };
+}
+
+/** Soft-delete: the chit stops appearing in the app (dropdowns, lists), but its row and history stay in the Sheet untouched. */
+function deleteChit(chitId) {
+  requireRole_([ROLE.ADMIN]);
+  const updated = updateRow_(SHEETS.CHITS, 'ChitID', chitId, { Deleted: true });
+  if (!updated) throw new Error('Chit not found.');
+  return { ok: true };
 }
 
 function listMembersNotInChit(chitId) {
   requireRole_([ROLE.ADMIN]);
   const enrolled = new Set(getAllEnrollmentsForChit_(chitId).map(function (e) { return e.MemberID; }));
-  return readAll_(SHEETS.MEMBERS).filter(function (m) { return !enrolled.has(m.MemberID); });
+  return readAll_(SHEETS.MEMBERS).filter(function (m) { return !enrolled.has(m.MemberID) && !m.Deleted; });
+}
+
+/** All members for the admin Members list — used to pick who to delete. */
+function listMembers() {
+  requireRole_([ROLE.ADMIN]);
+  return readAll_(SHEETS.MEMBERS).filter(function (m) { return !m.Deleted; });
+}
+
+/** Duplicate check for the pre-submit warning: an existing (non-deleted) member with this exact phone number. */
+function checkMemberDuplicate(phone) {
+  requireRole_([ROLE.ADMIN, ROLE.AGENT]);
+  const match = readAll_(SHEETS.MEMBERS).find(function (m) {
+    return !m.Deleted && String(m.Phone).trim() === String(phone).trim() && String(phone).trim() !== '';
+  });
+  return { duplicate: !!match, existingName: match ? match.Name : null };
 }
 
 function createMember(params) {
@@ -111,9 +186,28 @@ function createMember(params) {
     Phone: params.phone,
     Email: params.email || '',
     JoinedOn: new Date(),
-    Notes: params.notes || ''
+    Notes: params.notes || '',
+    Deleted: false
   });
-  return { memberId: memberId };
+  // Optional: enroll straight into one or more still-Enrolling chits from the same form.
+  const results = [];
+  (params.chitIds || []).forEach(function (chitId) {
+    try {
+      enrollMemberInChit(chitId, memberId);
+      results.push({ chitId: chitId, ok: true });
+    } catch (e) {
+      results.push({ chitId: chitId, ok: false, error: e.message || String(e) });
+    }
+  });
+  return { memberId: memberId, enrollments: results };
+}
+
+/** Soft-delete: the member stops appearing in dropdowns/collection screens, but their row and payment history stay in the Sheet untouched. */
+function deleteMember(memberId) {
+  requireRole_([ROLE.ADMIN]);
+  const updated = updateRow_(SHEETS.MEMBERS, 'MemberID', memberId, { Deleted: true });
+  if (!updated) throw new Error('Member not found.');
+  return { ok: true };
 }
 
 function enrollMemberInChit(chitId, memberId) {
@@ -243,7 +337,7 @@ function getChitLedger(chitId) {
   if (!chit) throw new Error('Chit not found.');
   const membersById = listMembersById_();
   const today = new Date();
-  const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) { return c.ChitID === chitId; });
+  const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) { return c.ChitID === chitId && !c.Deleted; });
 
   return getAllEnrollmentsForChit_(chitId).map(function (e) {
     const member = membersById[e.MemberID] || {};
@@ -270,10 +364,43 @@ function getDefaulters(chitId) {
   return getDefaultersForChit_(chitId);
 }
 
+/** Recent (non-deleted) payment log for one chit, newest first, capped at 100 — the surface the admin deletes a wrong entry from. */
+function listCollectionsForChit(chitId) {
+  requireRole_([ROLE.ADMIN]);
+  const membersById = listMembersById_();
+  return readAll_(SHEETS.COLLECTIONS)
+    .filter(function (c) { return c.ChitID === chitId && !c.Deleted; })
+    .sort(function (a, b) { return new Date(b.Timestamp) - new Date(a.Timestamp); })
+    .slice(0, 100)
+    .map(function (c) {
+      const m = membersById[c.MemberID] || {};
+      return {
+        collectionId: c.CollectionID, memberName: m.Name, date: formatDate_(c.Date),
+        amount: c.Amount, mode: c.Mode, entryType: c.EntryType
+      };
+    });
+}
+
+/**
+ * Soft-delete: marks the payment row Deleted so it drops out of ledgers,
+ * dashboards, and arrears math from this point on. The row itself stays in
+ * the Sheet, matching the committee's ask to keep a full paper trail there.
+ * Known limitation: if the deleted row was a late-joiner catch-up payment,
+ * the enrollment's stored CatchUpAmountPaid total isn't auto-adjusted —
+ * rare enough (late joiners are already the rare exception) that it's
+ * flagged here rather than built out, but worth knowing before relying on it.
+ */
+function deleteCollection(collectionId) {
+  requireRole_([ROLE.ADMIN]);
+  const updated = updateRow_(SHEETS.COLLECTIONS, 'CollectionID', collectionId, { Deleted: true });
+  if (!updated) throw new Error('Payment record not found.');
+  return { ok: true };
+}
+
 function getDashboardSummary() {
   requireRole_([ROLE.ADMIN]);
-  const chits = readAll_(SHEETS.CHITS).filter(function (c) { return c.Status === CHIT_STATUS.ACTIVE; });
-  const allCollections = readAll_(SHEETS.COLLECTIONS);
+  const chits = readAll_(SHEETS.CHITS).filter(function (c) { return c.Status === CHIT_STATUS.ACTIVE && !c.Deleted; });
+  const allCollections = readAll_(SHEETS.COLLECTIONS).filter(function (c) { return !c.Deleted; });
   const todayStr = formatDate_(new Date());
 
   const todaysCollections = allCollections.filter(function (c) { return formatDate_(c.Date) === todayStr; });
@@ -309,10 +436,10 @@ function getChitCollectionSummary_(chit) {
   let expected = 0;
   enrollments.forEach(function (e) {
     const effectiveStart = e.JoinDate > chit.StartDate ? e.JoinDate : chit.StartDate;
-    const ticks = generateTicks_(effectiveStart, chit.FrequencyType, null, today).length;
+    const ticks = generateTicks_(effectiveStart, chit.FrequencyType, null, today, chit.CustomDays).length;
     expected += ticks * Number(chit.InstallmentAmount);
   });
-  const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) { return c.ChitID === chit.ChitID; });
+  const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) { return c.ChitID === chit.ChitID && !c.Deleted; });
   const collected = collections.reduce(function (s, c) { return s + Number(c.Amount); }, 0);
   return { expected: expected, collected: collected };
 }
@@ -332,7 +459,16 @@ function addUser(email, name, role) {
 
 function setUserActive(email, active) {
   requireRole_([ROLE.ADMIN]);
-  updateRow_(SHEETS.USERS, 'Email', email, { Active: active });
+  if (active === false || active === 'false') assertNotLastAdmin_(email);
+  updateRow_(SHEETS.USERS, 'Email', email, { Active: active === true || active === 'true' });
+  return { ok: true };
+}
+
+function setUserRole(email, role) {
+  requireRole_([ROLE.ADMIN]);
+  if (role !== ROLE.ADMIN && role !== ROLE.AGENT) throw new Error('Unknown role: ' + role);
+  if (role === ROLE.AGENT) assertNotLastAdmin_(email);
+  updateRow_(SHEETS.USERS, 'Email', email, { Role: role });
   return { ok: true };
 }
 

@@ -55,14 +55,27 @@ function isWorkingDay_(date) {
   return !isHoliday_(date);
 }
 
+/** Parses Chits.CustomDays ('1,3,5') into a Set of Date.getDay() numbers. Empty/blank -> empty Set. */
+function parseCustomDays_(customDaysStr) {
+  const set = new Set();
+  String(customDaysStr || '').split(',').forEach(function (part) {
+    const n = parseInt(part, 10);
+    if (!isNaN(n)) set.add(n);
+  });
+  return set;
+}
+
 /**
  * Generates tick dates for a chit's frequency starting at startDate (inclusive).
  * Bound with EITHER maxCount (stop after this many ticks) OR maxDate
  * (stop once a tick would fall after this date) — pass whichever the caller needs.
+ * customDays is only consulted when frequencyType is CUSTOM_DAYS: a Set (or
+ * comma-separated string) of Date.getDay() numbers (0=Sun ... 6=Sat).
  */
-function generateTicks_(startDate, frequencyType, maxCount, maxDate) {
+function generateTicks_(startDate, frequencyType, maxCount, maxDate, customDays) {
   const start = dateOnly_(startDate);
   const ticks = [];
+  const customDaysSet = customDays instanceof Set ? customDays : parseCustomDays_(customDays);
 
   if (frequencyType === FREQUENCY_TYPE.MONTHLY) {
     let i = 0;
@@ -95,6 +108,9 @@ function generateTicks_(startDate, frequencyType, maxCount, maxDate) {
       case FREQUENCY_TYPE.WEEKLY:
         isTick = (dayOffset % 7 === 0);
         break;
+      case FREQUENCY_TYPE.CUSTOM_DAYS:
+        isTick = customDaysSet.has(d.getDay());
+        break;
       default:
         throw new Error('Unknown FrequencyType: ' + frequencyType);
     }
@@ -110,13 +126,13 @@ function generateTicks_(startDate, frequencyType, maxCount, maxDate) {
 
 /** All due dates from the chit's start up to and including `uptoDate`. */
 function getTicksSoFar_(chit, uptoDate) {
-  return generateTicks_(chit.StartDate, chit.FrequencyType, null, uptoDate);
+  return generateTicks_(chit.StartDate, chit.FrequencyType, null, uptoDate, chit.CustomDays);
 }
 
 /** The calendar date on which round `roundNumber` (1-based) draws. */
 function getRoundDrawDate_(chit, roundNumber) {
   const roundLength = Number(chit.RoundLengthInTicks);
-  const ticks = generateTicks_(chit.StartDate, chit.FrequencyType, roundNumber * roundLength, null);
+  const ticks = generateTicks_(chit.StartDate, chit.FrequencyType, roundNumber * roundLength, null, chit.CustomDays);
   return ticks[ticks.length - 1];
 }
 

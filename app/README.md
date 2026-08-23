@@ -50,10 +50,21 @@ Open the Web app URL on a phone browser and use **Add to Home Screen** (Chrome, 
 
 Add any known festival/bank holidays under **Admin → Holidays** before they matter for a working-days chit — the schedule engine reads that list live.
 
+## Updating an existing deployment
+
+If you already have Chitty Kampany set up and are pulling in a newer version of the script (adding fields like deletion, duplicate warnings, or custom collection days), two extra steps are needed beyond just replacing the file contents:
+
+1. **Re-run `setupSheets`** from the function dropdown once, the same way you did in step 3. It's safe to run again — it never touches existing data — but it will add any new columns (like `Deleted` or `CustomDays`) to the end of a sheet's header row if they're missing.
+2. **Deploy a new version** (Deploy → Manage deployments → edit (pencil) → New version → Deploy). Editing the script alone doesn't reach the live web app URL — a new deployment version does.
+
+## Known limitation: deleted catch-up payments
+
+Deleting a late-joiner's catch-up payment record removes it from ledgers and totals immediately, but the running "catch-up amount paid" total stored on their enrollment isn't automatically re-adjusted. Late joiners are already the rare exception, so this is flagged rather than built out — if it comes up, correct that figure by hand on the Enrollments tab.
+
 ## What's deliberately not in v1
 
-Matches the brief: no member self-service lookup, no automatic WhatsApp sending (tap-to-send links only), no exports, single committee per deployment, and no explicit flow for a member dropping out of a chit before ever winning — handle that manually for now.
+Matches the brief: no member self-service lookup, no automatic WhatsApp sending (tap-to-send links only), no exports, single committee per deployment, no logo/custom branding, and no explicit flow for a member dropping out of a chit before ever winning — handle that manually for now.
 
 ## If something looks wrong
 
-The `Config`, `Users`, `Chits`, `Enrollments`, `Collections`, `Draws`, `Holidays`, and `Members` tabs are all plain data — you can always open the Sheet directly to see exactly what the app has recorded, which is the point of building it this way.
+The `Config`, `Users`, `Chits`, `Enrollments`, `Collections`, `Draws`, `Holidays`, and `Members` tabs are all plain data — you can always open the Sheet directly to see exactly what the app has recorded, which is the point of building it this way. Deleting a member, chit, or payment record from inside the app never removes its row from the Sheet — it only hides it from dropdowns, lists, and totals going forward, so that history stays intact.

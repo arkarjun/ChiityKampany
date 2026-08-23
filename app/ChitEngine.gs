@@ -87,6 +87,16 @@ function recordDraw_(chitId, winnerMemberId, recordedByEmail) {
     Status: ENROLLMENT_STATUS.WON
   });
 
+  // If that was the last member left eligible, everyone has now won once —
+  // the chit's run is over. Close it automatically so it drops out of the
+  // Active tab and out of the Collect screen's dropdown.
+  const stillEligible = getActiveEnrollments_(chitId).filter(function (e) {
+    return e.EnrollmentID !== winnerEnrollment.EnrollmentID;
+  });
+  if (stillEligible.length === 0) {
+    updateRow_(SHEETS.CHITS, 'ChitID', chitId, { Status: CHIT_STATUS.CLOSED });
+  }
+
   return { roundNumber: roundNumber, pool: pool, commission: commission, netPayout: netPayout };
 }
 
@@ -111,9 +121,10 @@ function computeCatchupAmountDue_(chit, joinDate) {
  */
 function getMemberArrears_(chit, enrollment, asOfDate) {
   const effectiveStart = enrollment.JoinDate > chit.StartDate ? enrollment.JoinDate : chit.StartDate;
-  const ticksDue = generateTicks_(effectiveStart, chit.FrequencyType, null, asOfDate).length;
+  const ticksDue = generateTicks_(effectiveStart, chit.FrequencyType, null, asOfDate, chit.CustomDays).length;
   const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) {
-    return c.ChitID === chit.ChitID && c.MemberID === enrollment.MemberID && c.EntryType === ENTRY_TYPE.INSTALLMENT;
+    return c.ChitID === chit.ChitID && c.MemberID === enrollment.MemberID &&
+      c.EntryType === ENTRY_TYPE.INSTALLMENT && !c.Deleted;
   });
   const paidCount = collections.length;
   return Math.max(0, ticksDue - paidCount);
