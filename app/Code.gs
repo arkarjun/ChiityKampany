@@ -86,7 +86,7 @@ function logPayment(chitId, memberId, amount, mode) {
 
 function listAllChits() {
   requireRole_([ROLE.ADMIN]);
-  return readAll_(SHEETS.CHITS).filter(function (c) { return !c.Deleted; });
+  return sanitizeForClient_(readAll_(SHEETS.CHITS).filter(function (c) { return !c.Deleted; }));
 }
 
 /** Comma-joins an array of weekday numbers (0=Sun..6=Sat) for storage; passes through a string as-is. */
@@ -159,13 +159,13 @@ function deleteChit(chitId) {
 function listMembersNotInChit(chitId) {
   requireRole_([ROLE.ADMIN]);
   const enrolled = new Set(getAllEnrollmentsForChit_(chitId).map(function (e) { return e.MemberID; }));
-  return readAll_(SHEETS.MEMBERS).filter(function (m) { return !enrolled.has(m.MemberID) && !m.Deleted; });
+  return sanitizeForClient_(readAll_(SHEETS.MEMBERS).filter(function (m) { return !enrolled.has(m.MemberID) && !m.Deleted; }));
 }
 
 /** All members for the admin Members list — used to pick who to delete. */
 function listMembers() {
   requireRole_([ROLE.ADMIN]);
-  return readAll_(SHEETS.MEMBERS).filter(function (m) { return !m.Deleted; });
+  return sanitizeForClient_(readAll_(SHEETS.MEMBERS).filter(function (m) { return !m.Deleted; }));
 }
 
 /** Duplicate check for the pre-submit warning: an existing (non-deleted) member with this exact phone number. */
@@ -474,7 +474,7 @@ function setUserRole(email, role) {
 
 function listHolidays() {
   requireRole_([ROLE.ADMIN]);
-  return readAll_(SHEETS.HOLIDAYS);
+  return sanitizeForClient_(readAll_(SHEETS.HOLIDAYS));
 }
 
 function addHoliday(dateStr, description) {

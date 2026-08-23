@@ -100,3 +100,39 @@ function updateRow_(sheetName, idColumn, idValue, patch) {
 function newId_(prefix) {
   return prefix + '-' + new Date().getTime() + '-' + Math.floor(Math.random() * 900 + 100);
 }
+
+/**
+ * Recursively converts every Date value in an object/array into a plain
+ * 'yyyy-MM-dd' string (or '' if the Date is invalid). Use this ONLY at the
+ * client-facing edge — wrapping what a Code.gs function actually returns to
+ * google.script.run — never inside readAll_() itself.
+ *
+ * Why this exists: google.script.run serializes a function's return value
+ * as a separate step AFTER your function has already finished running, so
+ * that step isn't covered by your own try/catch and a failure there still
+ * shows "Completed" (not "Failed") in the Apps Script Executions log — it
+ * just silently hands the browser a null response instead of your data.
+ * An Invalid Date object anywhere in the payload (e.g. a blank or malformed
+ * date cell read back as `new Date(NaN)`) throws during that serialization
+ * step. Converting Dates to plain strings before they leave the server
+ * avoids that entirely, regardless of what ends up in a date cell.
+ *
+ * Internal code (ChitEngine.gs, ScheduleEngine.gs, etc.) still needs real
+ * Date objects for comparisons like `enrollment.JoinDate > chit.StartDate`,
+ * which is why this isn't baked into readAll_() itself — it would break
+ * that date arithmetic everywhere else in the app.
+ */
+function sanitizeForClient_(value) {
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? '' : formatDate_(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeForClient_);
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    Object.keys(value).forEach(function (k) { out[k] = sanitizeForClient_(value[k]); });
+    return out;
+  }
+  return value;
+}
