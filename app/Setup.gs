@@ -24,11 +24,23 @@ function setupSheets() {
   applyValidation_();
   seedConfigAndFirstAdmin_();
 
-  SpreadsheetApp.getUi().alert(
-    'Setup complete. Tabs created, and ' + Session.getEffectiveUser().getEmail() +
+  // Everything above this point has already been written to the sheet by
+  // now — SpreadsheetApp writes commit immediately, they don't roll back if
+  // something later in the function throws. This alert is just a nice
+  // confirmation, and getUi() only works when setupSheets() is triggered
+  // from the spreadsheet's own UI (the "Chitty Kampany" menu, or a click in
+  // an open Sheet) — not when run directly from the Apps Script editor's Run
+  // button, which is how the setup guide actually tells people to run it the
+  // first time. So this is wrapped rather than left to throw: no UI context
+  // just means log the confirmation instead of popping an alert.
+  const summary = 'Setup complete. Tabs created, and ' + Session.getEffectiveUser().getEmail() +
     ' was added to Users as an ADMIN. Next: deploy this project as a web app ' +
-    '(Deploy > New deployment > Web app), and add your agents to the Users tab.'
-  );
+    '(Deploy > New deployment > Web app), and add your agents to the Users tab.';
+  try {
+    SpreadsheetApp.getUi().alert(summary);
+  } catch (e) {
+    Logger.log(summary);
+  }
 }
 
 function ensureHeader_(sheet, headers) {
