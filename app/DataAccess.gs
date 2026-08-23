@@ -101,6 +101,37 @@ function newId_(prefix) {
   return prefix + '-' + new Date().getTime() + '-' + Math.floor(Math.random() * 900 + 100);
 }
 
+/** Converts a 0-based column index (e.g. COLUMNS.X.indexOf('Y')) into its A1-style letter(s): 0->A, 25->Z, 26->AA. */
+function columnLetter_(index0) {
+  let n = index0 + 1;
+  let letters = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters;
+}
+
+/**
+ * Sets a live formula (not a value) into one cell of an existing row. Used
+ * for the Enrollments.MemberName column, which is deliberately a lookup
+ * formula rather than a stored value — see Constants.gs for why.
+ */
+function setCellFormula_(sheetName, rowNumber, columnName, formula) {
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+  try {
+    const sheet = getSheet_(sheetName);
+    const cols = COLUMNS[sheetName];
+    const colIdx = cols.indexOf(columnName);
+    if (colIdx === -1) throw new Error('Unknown column ' + columnName + ' on ' + sheetName);
+    sheet.getRange(rowNumber, colIdx + 1).setFormula(formula);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /**
  * Recursively converts every Date value in an object/array into a plain
  * 'yyyy-MM-dd' string (or '' if the Date is invalid). Use this ONLY at the

@@ -8,9 +8,13 @@
  */
 
 function doGet(e) {
-  return HtmlService.createTemplateFromFile('Index')
-    .evaluate()
-    .setTitle('Chitty Kampany')
+  const appTitle = getConfigValue_('AppTitle', 'Chitty Kampany');
+  const theme = getConfigValue_('Theme', 'classic');
+  const template = HtmlService.createTemplateFromFile('Index');
+  template.appTitle = appTitle;
+  template.themeClass = 'theme-' + theme;
+  return template.evaluate()
+    .setTitle(appTitle)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
@@ -62,9 +66,10 @@ function logPayment(chitId, memberId, amount, mode) {
   const chit = getChitById_(chitId);
   if (!chit) throw new Error('Chit not found.');
   const today = new Date();
+  const collectionId = newId_('COL');
 
   appendRow_(SHEETS.COLLECTIONS, {
-    CollectionID: newId_('COL'),
+    CollectionID: collectionId,
     ChitID: chitId,
     MemberID: memberId,
     Date: today,
@@ -77,8 +82,9 @@ function logPayment(chitId, memberId, amount, mode) {
   });
 
   const member = listMembersById_()[memberId];
-  sendPaymentReceiptEmail_(member, chit, amount, mode, today);
-  const waLink = buildPaymentReceiptWhatsAppLink_(member, chit, amount, mode, today);
+  // collectionId doubles as the receipt's Ref code — see Notifications.gs for why.
+  sendPaymentReceiptEmail_(member, chit, amount, mode, today, collectionId);
+  const waLink = buildPaymentReceiptWhatsAppLink_(member, chit, amount, mode, today, collectionId);
   return { ok: true, whatsAppLink: waLink };
 }
 
@@ -221,7 +227,7 @@ function enrollMemberInChit(chitId, memberId) {
   if (currentCount >= Number(chit.PlannedParticipantCount)) {
     throw new Error('This chit is already at its planned participant count.');
   }
-  appendRow_(SHEETS.ENROLLMENTS, {
+  const rowNumber = appendRow_(SHEETS.ENROLLMENTS, {
     EnrollmentID: newId_('ENR'),
     ChitID: chitId,
     MemberID: memberId,
@@ -231,7 +237,23 @@ function enrollMemberInChit(chitId, memberId) {
     CatchUpAmountPaid: 0,
     Status: ENROLLMENT_STATUS.ACTIVE
   });
+  setEnrollmentMemberNameFormula_(rowNumber);
   return { ok: true };
+}
+
+/**
+ * After an Enrollments row is appended, drops a live VLOOKUP formula into its
+ * MemberName column (=IFERROR(VLOOKUP(<MemberID cell>, Members!A:B, 2, FALSE), ""))
+ * so the raw sheet always shows the member's current name for easy debugging,
+ * without needing to cross-reference MemberID by hand. It's a formula rather
+ * than a stored value on purpose — it stays live if a member's name is ever
+ * corrected later. Relies on Enrollments/Members columns only ever being
+ * appended to, never reordered — see the comments in Constants.gs.
+ */
+function setEnrollmentMemberNameFormula_(rowNumber) {
+  const memberIdCol = columnLetter_(COLUMNS.Enrollments.indexOf('MemberID'));
+  setCellFormula_(SHEETS.ENROLLMENTS, rowNumber, 'MemberName',
+    '=IFERROR(VLOOKUP(' + memberIdCol + rowNumber + ',Members!$A:$B,2,FALSE),"")');
 }
 
 function activateChit(chitId) {
@@ -259,7 +281,7 @@ function lateJoinMember(chitId, memberId, joinType, joinDateStr) {
   const joinDate = new Date(joinDateStr);
   const catchupDue = computeCatchupAmountDue_(chit, joinDate);
 
-  appendRow_(SHEETS.ENROLLMENTS, {
+  const rowNumber = appendRow_(SHEETS.ENROLLMENTS, {
     EnrollmentID: newId_('ENR'),
     ChitID: chitId,
     MemberID: memberId,
@@ -269,6 +291,7 @@ function lateJoinMember(chitId, memberId, joinType, joinDateStr) {
     CatchUpAmountPaid: 0,
     Status: ENROLLMENT_STATUS.ACTIVE
   });
+  setEnrollmentMemberNameFormula_(rowNumber);
   return { ok: true, catchupDue: catchupDue };
 }
 
@@ -481,5 +504,39 @@ function addHoliday(dateStr, description) {
   requireRole_([ROLE.ADMIN]);
   appendRow_(SHEETS.HOLIDAYS, { Date: new Date(dateStr), Description: description });
   _holidaySet_ = null; // invalidate the in-memory cache so the new holiday takes effect immediately
+  return { ok: true };
+}
+
+// ---------- Admin: settings (branding + message templates) ----------
+
+/** Maps the client-facing settings keys to their Config sheet keys, in one place so get/update can't drift apart. */
+const APP_SETTINGS_MAP_ = {
+  appTitle: 'AppTitle',
+  theme: 'Theme',
+  paymentReceiptWhatsAppTemplate: 'PaymentReceiptWhatsAppTemplate',
+  paymentReceiptEmailTemplate: 'PaymentReceiptEmailTemplate',
+  drawResultWhatsAppTemplate: 'DrawResultWhatsAppTemplate',
+  drawResultEmailTemplate: 'DrawResultEmailTemplate'
+};
+
+/** Current customizable app settings, with sensible defaults for anything never saved. */
+function getAppSettings() {
+  requireRole_([ROLE.ADMIN]);
+  return {
+    appTitle: getConfigValue_('AppTitle', 'Chitty Kampany'),
+    theme: getConfigValue_('Theme', 'classic'),
+    paymentReceiptWhatsAppTemplate: getConfigValue_('PaymentReceiptWhatsAppTemplate', DEFAULT_PAYMENT_RECEIPT_WHATSAPP_),
+    paymentReceiptEmailTemplate: getConfigValue_('PaymentReceiptEmailTemplate', DEFAULT_PAYMENT_RECEIPT_EMAIL_),
+    drawResultWhatsAppTemplate: getConfigValue_('DrawResultWhatsAppTemplate', DEFAULT_DRAW_RESULT_WHATSAPP_),
+    drawResultEmailTemplate: getConfigValue_('DrawResultEmailTemplate', DEFAULT_DRAW_RESULT_EMAIL_)
+  };
+}
+
+/** Saves any subset of the customizable settings — only recognized keys are written, anything else is ignored. */
+function updateAppSettings(patch) {
+  requireRole_([ROLE.ADMIN]);
+  Object.keys(APP_SETTINGS_MAP_).forEach(function (key) {
+    if (patch[key] !== undefined) setConfigValue_(APP_SETTINGS_MAP_[key], patch[key]);
+  });
   return { ok: true };
 }

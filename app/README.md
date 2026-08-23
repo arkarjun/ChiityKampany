@@ -50,12 +50,16 @@ Open the Web app URL on a phone browser and use **Add to Home Screen** (Chrome, 
 
 Add any known festival/bank holidays under **Admin → Holidays** before they matter for a working-days chit — the schedule engine reads that list live.
 
+Under **Admin → Settings**, an admin can set the app's title and pick from four colour themes (Classic, Ocean, Sunrise, Forest) — both apply for everyone on their next page load. The same screen lets you customize the wording of payment-receipt and draw-result messages (WhatsApp and email); a payment receipt's `{{ref}}` placeholder prints the real Collection ID, so a member can quote it back to the committee to confirm a receipt is genuine, rather than one an agent typed by hand without ever logging the payment.
+
 ## Updating an existing deployment
 
-If you already have Chitty Kampany set up and are pulling in a newer version of the script (adding fields like deletion, duplicate warnings, or custom collection days), two extra steps are needed beyond just replacing the file contents:
+If you already have Chitty Kampany set up and are pulling in a newer version of the script (adding fields like deletion, duplicate warnings, custom collection days, or a MemberName lookup on Enrollments), two extra steps are needed beyond just replacing the file contents:
 
-1. **Re-run `setupSheets`** from the function dropdown once, the same way you did in step 3. It's safe to run again — it never touches existing data — but it will add any new columns (like `Deleted` or `CustomDays`) to the end of a sheet's header row if they're missing.
+1. **Re-run `setupSheets`** from the function dropdown once, the same way you did in step 3. It's safe to run again — it never touches existing data — but it will add any new columns (like `Deleted`, `CustomDays`, or `MemberName`) to the end of a sheet's header row if they're missing.
 2. **Deploy a new version** (Deploy → Manage deployments → edit (pencil) → New version → Deploy). Editing the script alone doesn't reach the live web app URL — a new deployment version does.
+
+Note on `MemberName`: it's a live lookup formula, not a stored value, and only gets written into new Enrollments rows going forward — existing rows will show it blank until you delete and re-add that enrollment, if you want it backfilled.
 
 ## Known limitation: deleted catch-up payments
 
@@ -63,7 +67,7 @@ Deleting a late-joiner's catch-up payment record removes it from ledgers and tot
 
 ## What's deliberately not in v1
 
-Matches the brief: no member self-service lookup, no automatic WhatsApp sending (tap-to-send links only), no exports, single committee per deployment, no logo/custom branding, and no explicit flow for a member dropping out of a chit before ever winning — handle that manually for now.
+Matches the brief: no member self-service lookup, no automatic WhatsApp sending (tap-to-send links only — see Admin → Settings for the message templates and the receipt Ref code, which is the closest this app gets to fraud-proofing that flow without standing up a WhatsApp Business API integration), no exports, single committee per deployment, no custom logo/image upload (app title and colour theme are configurable, under Admin → Settings), and no explicit flow for a member dropping out of a chit before ever winning — handle that manually for now.
 
 ## If something looks wrong
 

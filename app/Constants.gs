@@ -33,9 +33,15 @@ const COLUMNS = {
     'PlannedParticipantCount', 'CommissionType', 'CommissionValue',
     'StartDate', 'Status', 'CreatedBy', 'CreatedOn', 'CustomDays', 'Deleted'
   ],
+  // 'MemberName' is appended at the end (same reasoning as 'Deleted' above) and
+  // is never written as a plain value — Code.gs drops a live VLOOKUP formula
+  // into it when an enrollment row is created, so it always reflects whatever
+  // the member's current name is rather than a stale snapshot. It exists
+  // purely so the raw sheet is readable for debugging without cross-referencing
+  // MemberID against the Members tab by hand.
   Enrollments: [
     'EnrollmentID', 'ChitID', 'MemberID', 'JoinDate', 'JoinType',
-    'CatchUpAmountDue', 'CatchUpAmountPaid', 'Status'
+    'CatchUpAmountDue', 'CatchUpAmountPaid', 'Status', 'MemberName'
   ],
   Collections: [
     'CollectionID', 'ChitID', 'MemberID', 'Date', 'Amount', 'Mode',

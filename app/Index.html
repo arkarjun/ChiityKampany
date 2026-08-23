@@ -8,6 +8,12 @@
       --ink: #16324f; --ink-soft: #4b6178; --line: #d7dee6; --bg: #f6f8fa;
       --card: #ffffff; --good: #1c7c4d; --bad: #b3261e; --accent: #16324f;
     }
+    /* Admin-selectable colour themes (Admin -> Settings). Only the hue-bearing
+       tokens change between themes; --good/--bad stay fixed so success/error
+       colouring keeps its meaning everywhere. */
+    body.theme-ocean   { --ink: #0b5394; --ink-soft: #4a7fa8; --line: #cfe0ec; --bg: #f2f8fc; --accent: #0b5394; }
+    body.theme-sunrise { --ink: #b45309; --ink-soft: #a9714a; --line: #f0dfcb; --bg: #fdf8f2; --accent: #b45309; }
+    body.theme-forest  { --ink: #1f5138; --ink-soft: #4f7864; --line: #d3e3d9; --bg: #f4f9f6; --accent: #1f5138; }
     * { box-sizing: border-box; }
     body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: #1a1a1a; margin: 0; padding-bottom: 40px; }
     header { background: var(--ink); color: #fff; padding: 14px 16px; }
@@ -27,6 +33,11 @@
     button.primary { margin-top: 14px; width: 100%; padding: 11px; background: var(--ink); color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
     button.primary:disabled { opacity: 0.5; }
     button.secondary { padding: 7px 12px; background: #fff; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--ink); margin-right: 6px; margin-top: 6px; }
+    /* Covers the admin subnav, the chit status tabs, and the theme picker —
+       everything using class="secondary ... active" together. Without this,
+       toggling the 'active' class had no visible effect (only nav button.active
+       and .daytoggle.active were ever styled). */
+    button.secondary.active { background: var(--ink); color: #fff; border-color: var(--ink); }
     button.danger { color: var(--bad); border-color: var(--bad); }
     .msg { margin-top: 10px; font-size: 13px; padding: 8px 10px; border-radius: 6px; }
     .msg.ok { background: #e6f4ec; color: var(--good); }
@@ -60,12 +71,25 @@
     .busy-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; z-index: 1100; }
     .spinner { width: 36px; height: 36px; border: 4px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* Searchable member picker (replaces a plain <select> for "Enroll members"). */
+    .member-pick-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; }
+    .member-pick-row { padding: 8px 10px; font-size: 14px; cursor: pointer; border-bottom: 1px solid var(--line); }
+    .member-pick-row:last-child { border-bottom: none; }
+    .member-pick-row:hover { background: #f0f4f8; }
+    .member-pick-row.selected { background: var(--ink); color: #fff; }
+    .member-pick-empty { font-size: 13px; color: var(--ink-soft); padding: 8px 2px; }
+    /* Checkbox list (replaces the multi-select for "Enroll into chit(s)"). */
+    .checkbox-list { border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; }
+    .checkbox-list label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1a1a1a; margin: 8px 0; }
+    .checkbox-list input[type=checkbox] { width: auto; }
+    footer.app-footer { text-align: center; font-size: 11px; color: var(--ink-soft); padding: 20px 16px 10px; }
+    footer.app-footer a { color: var(--ink-soft); }
   </style>
 </head>
-<body>
+<body class="<?= themeClass ?>">
 
 <header>
-  <h1>Chitty Kampany</h1>
+  <h1><?= appTitle ?></h1>
   <div class="sub" id="whoami">Loading…</div>
 </header>
 
@@ -111,6 +135,7 @@
       <button class="secondary" data-tab="members" onclick="showAdminTab('members')">Members</button>
       <button class="secondary" data-tab="users" onclick="showAdminTab('users')">Users</button>
       <button class="secondary" data-tab="holidays" onclick="showAdminTab('holidays')">Holidays</button>
+      <button class="secondary" data-tab="settings" onclick="showAdminTab('settings')">Settings</button>
     </div>
 
     <!-- Dashboard -->
@@ -209,7 +234,7 @@
           <div><label>Email (optional)</label><input id="mEmail" /></div>
         </div>
         <label>Enroll into chit(s) now (optional — only chits still open for enrollment)</label>
-        <select id="mChits" multiple size="4"></select>
+        <div id="mChitsList" class="checkbox-list"></div>
         <button class="primary" onclick="submitNewMember()">Add member</button>
         <div id="mMsg"></div>
       </div>
@@ -254,6 +279,38 @@
         <h2>Holiday calendar</h2>
         <div id="holidaysMsg"></div>
         <table id="holidayList"><tr><th>Date</th><th>Description</th></tr></table>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div id="tab-settings" class="admin-tab hidden">
+      <div class="card">
+        <h2>App branding</h2>
+        <label>App title</label>
+        <input id="setAppTitle" placeholder="e.g. Chitty Kampany" />
+        <label>Colour theme</label>
+        <div class="subnav" id="themeSubnav">
+          <button type="button" class="secondary" data-theme="classic" onclick="selectTheme('classic')">Classic</button>
+          <button type="button" class="secondary" data-theme="ocean" onclick="selectTheme('ocean')">Ocean</button>
+          <button type="button" class="secondary" data-theme="sunrise" onclick="selectTheme('sunrise')">Sunrise</button>
+          <button type="button" class="secondary" data-theme="forest" onclick="selectTheme('forest')">Forest</button>
+        </div>
+        <button class="primary" onclick="submitBranding()">Save branding</button>
+        <div id="brandingMsg"></div>
+      </div>
+      <div class="card">
+        <h2>Message templates</h2>
+        <p style="font-size:12px;color:var(--ink-soft)">Placeholders for payment receipts: {{memberName}}, {{amount}}, {{mode}}, {{date}}, {{chitName}}, {{committeeName}}, {{ref}}. Placeholders for draw results: {{memberName}}, {{roundNumber}}, {{netPayout}}, {{chitName}}, {{committeeName}}. Keeping {{ref}} in a payment receipt gives members a code they can quote back to the committee to verify a receipt is genuine.</p>
+        <label>Payment receipt — WhatsApp</label>
+        <textarea id="setPRWa" rows="3"></textarea>
+        <label>Payment receipt — Email</label>
+        <textarea id="setPREmail" rows="5"></textarea>
+        <label>Draw result — WhatsApp</label>
+        <textarea id="setDRWa" rows="3"></textarea>
+        <label>Draw result — Email</label>
+        <textarea id="setDREmail" rows="5"></textarea>
+        <button class="primary" onclick="submitTemplates()">Save templates</button>
+        <div id="templatesMsg"></div>
       </div>
     </div>
   </div>
@@ -400,6 +457,7 @@
     if (name === 'members') loadMembersList();
     if (name === 'users') loadUsers();
     if (name === 'holidays') loadHolidays();
+    if (name === 'settings') loadSettings();
   }
 
   // ---------------- Collect screen ----------------
@@ -529,6 +587,13 @@
   }
 
   function renderChitList() {
+    // The detail card only makes sense for whatever chit you most recently
+    // clicked — hide it whenever the list itself re-renders (switching status
+    // tabs, or coming back to this tab), instead of leaving the last-opened
+    // chit's detail sitting there indefinitely.
+    const detailEl = document.getElementById('chitDetail');
+    detailEl.classList.add('hidden');
+    detailEl.innerHTML = '';
     const chits = allChitsCache.filter(c => c.Status === chitStatusFilter);
     document.getElementById('chitList').innerHTML = chits.map(c => `
       <div class="chit-item" onclick="openChitDetail('${c.ChitID}')">
@@ -665,8 +730,11 @@
 
     if (chit.Status === 'ENROLLING') {
       const available = await api('listMembersNotInChit', chitId);
+      enrollMemberOptions = available.map(m => ({ MemberID: m.MemberID, Name: m.Name }));
+      selectedEnrollMemberId = '';
       html += `<h3>Enroll members</h3>
-        <select id="enrollMemberSelect">${available.map(m => `<option value="${m.MemberID}">${m.Name}</option>`).join('') || '<option disabled>No members available — add one under Members</option>'}</select>
+        <input type="text" id="enrollMemberSearch" placeholder="Search members by name…" oninput="filterEnrollMemberList()" />
+        <div id="enrollMemberList" class="member-pick-list"></div>
         <button class="secondary" style="margin-top:8px" onclick="doEnroll('${chitId}')">Enroll</button>
         <div id="enrollMsg"></div>
         <button class="primary" onclick="doActivate('${chitId}')">Activate chit (locks normal enrollment)</button>
@@ -698,6 +766,8 @@
     html += `<h3>Payment records</h3><div id="paymentRecords"></div>`;
     detail.innerHTML = html;
 
+    if (chit.Status === 'ENROLLING') renderEnrollMemberList('');
+
     document.querySelector('#ledgerTable table').innerHTML =
       '<tr><th>Member</th><th>Status</th><th>Paid (₹)</th><th>Arrears</th></tr>' +
       ledger.map(r => `<tr><td>${r.name}</td><td>${r.status}</td><td>${r.totalPaid}</td><td>${r.arrearsCount || 0}</td></tr>`).join('');
@@ -722,13 +792,40 @@
     } catch (e) { await infoDialog('Could not delete', e.message || String(e)); }
   }
 
+  // Searchable "Enroll members" picker — replaces a plain <select>, which got
+  // unwieldy once a committee has more than a handful of members.
+  let enrollMemberOptions = [];
+  let selectedEnrollMemberId = '';
+
+  function renderEnrollMemberList(filterText) {
+    const q = (filterText || '').trim().toLowerCase();
+    const rows = enrollMemberOptions.filter(m => m.Name.toLowerCase().includes(q));
+    const listEl = document.getElementById('enrollMemberList');
+    if (!listEl) return;
+    if (!rows.length) {
+      listEl.innerHTML = '<div class="member-pick-empty">' +
+        (enrollMemberOptions.length ? 'No members match your search.' : 'No members available — add one under Members.') + '</div>';
+      return;
+    }
+    listEl.innerHTML = rows.map(m => `<div class="member-pick-row${m.MemberID === selectedEnrollMemberId ? ' selected' : ''}" onclick="pickEnrollMember('${m.MemberID}')">${m.Name}</div>`).join('');
+  }
+
+  function filterEnrollMemberList() {
+    renderEnrollMemberList(document.getElementById('enrollMemberSearch').value);
+  }
+
+  function pickEnrollMember(memberId) {
+    selectedEnrollMemberId = memberId;
+    renderEnrollMemberList(document.getElementById('enrollMemberSearch').value);
+  }
+
   async function doEnroll(chitId) {
-    const sel = document.getElementById('enrollMemberSelect');
-    const memberId = sel.value;
-    const name = sel.selectedOptions.length ? sel.selectedOptions[0].textContent : '';
+    if (!selectedEnrollMemberId) { showMsg('enrollMsg', 'Pick a member from the list first.', false); return; }
+    const member = enrollMemberOptions.find(m => m.MemberID === selectedEnrollMemberId);
+    const name = member ? member.Name : '';
     const ok = await confirmDialog('Enroll this member?', `${name} into this chit.`);
     if (!ok) return;
-    try { await api('enrollMemberInChit', chitId, memberId); await infoDialog('Enrolled', name + ' is now enrolled.'); openChitDetail(chitId); }
+    try { await api('enrollMemberInChit', chitId, selectedEnrollMemberId); await infoDialog('Enrolled', name + ' is now enrolled.'); openChitDetail(chitId); }
     catch (e) { await infoDialog('Could not enroll', e.message || String(e)); }
   }
 
@@ -778,7 +875,9 @@
   async function loadMemberEnrollOptions() {
     const chits = allChitsCache.length ? allChitsCache : await api('listAllChits');
     const enrolling = chits.filter(c => c.Status === 'ENROLLING');
-    document.getElementById('mChits').innerHTML = enrolling.map(c => `<option value="${c.ChitID}">${c.Name}</option>`).join('') || '<option disabled>No chits open for enrollment</option>';
+    document.getElementById('mChitsList').innerHTML = enrolling.length
+      ? enrolling.map(c => `<label><input type="checkbox" class="mChitCheckbox" value="${c.ChitID}" /> ${c.Name}</label>`).join('')
+      : '<div class="member-pick-empty">No chits open for enrollment.</div>';
   }
 
   async function loadMembersList() {
@@ -805,7 +904,7 @@
     const name = document.getElementById('mName').value;
     const phone = document.getElementById('mPhone').value;
     const email = document.getElementById('mEmail').value;
-    const chitIds = Array.from(document.getElementById('mChits').selectedOptions).map(o => o.value).filter(v => v);
+    const chitIds = Array.from(document.querySelectorAll('.mChitCheckbox:checked')).map(cb => cb.value);
     if (!name || !phone) { showMsg('mMsg', 'Name and phone are required.', false); return; }
 
     let warning = '';
@@ -826,6 +925,7 @@
       document.getElementById('mName').value = '';
       document.getElementById('mPhone').value = '';
       document.getElementById('mEmail').value = '';
+      document.querySelectorAll('.mChitCheckbox').forEach(cb => { cb.checked = false; });
       loadMembersList();
     } catch (e) { await infoDialog('Could not add member', e.message || String(e)); }
   }
@@ -899,6 +999,60 @@
       showMsg('holidaysMsg', 'Could not load holidays: ' + (e.message || String(e)), false);
     }
   }
+
+  // ---------------- Settings ----------------
+  let selectedTheme = 'classic';
+
+  function selectTheme(theme) {
+    selectedTheme = theme;
+    document.querySelectorAll('#themeSubnav button[data-theme]').forEach(b => b.classList.toggle('active', b.dataset.theme === theme));
+  }
+
+  async function loadSettings() {
+    document.getElementById('brandingMsg').innerHTML = '';
+    document.getElementById('templatesMsg').innerHTML = '';
+    try {
+      const s = await api('getAppSettings');
+      document.getElementById('setAppTitle').value = s.appTitle;
+      selectTheme(s.theme);
+      document.getElementById('setPRWa').value = s.paymentReceiptWhatsAppTemplate;
+      document.getElementById('setPREmail').value = s.paymentReceiptEmailTemplate;
+      document.getElementById('setDRWa').value = s.drawResultWhatsAppTemplate;
+      document.getElementById('setDREmail').value = s.drawResultEmailTemplate;
+    } catch (e) {
+      showMsg('brandingMsg', 'Could not load settings: ' + (e.message || String(e)), false);
+    }
+  }
+
+  async function submitBranding() {
+    const appTitle = document.getElementById('setAppTitle').value.trim();
+    if (!appTitle) { showMsg('brandingMsg', 'App title cannot be empty.', false); return; }
+    try {
+      await api('updateAppSettings', { appTitle, theme: selectedTheme });
+      showMsg('brandingMsg', 'Saved. Reload the page to see the new title and colours everywhere.', true);
+    } catch (e) {
+      showMsg('brandingMsg', e.message || String(e), false);
+    }
+  }
+
+  async function submitTemplates() {
+    try {
+      await api('updateAppSettings', {
+        paymentReceiptWhatsAppTemplate: document.getElementById('setPRWa').value,
+        paymentReceiptEmailTemplate: document.getElementById('setPREmail').value,
+        drawResultWhatsAppTemplate: document.getElementById('setDRWa').value,
+        drawResultEmailTemplate: document.getElementById('setDREmail').value
+      });
+      showMsg('templatesMsg', 'Saved.', true);
+    } catch (e) {
+      showMsg('templatesMsg', e.message || String(e), false);
+    }
+  }
 </script>
+
+<footer class="app-footer">
+  Powered by Chitty Kampany — <a href="https://github.com/arkarjun/ChiityKampany" target="_blank" rel="noopener">an open-source app</a> · built with ♥ by arkarjun
+</footer>
+
 </body>
 </html>
