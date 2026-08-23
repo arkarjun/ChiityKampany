@@ -291,10 +291,29 @@
   }
 
   function api(fnName, ...args) {
+    return apiCall_(fnName, args, true);
+  }
+
+  // Every google.script.run call sometimes comes back with a success handler
+  // firing on `null`/`undefined` instead of the real value — a known quirk of
+  // the Apps Script bridge (most common on Safari/iOS, where the hidden
+  // communication iframe occasionally drops a response instead of erroring).
+  // One quiet retry clears most of these; if it still comes back empty, that
+  // gets turned into a real, catchable error instead of silently crashing
+  // whatever tried to read .filter/.map/etc off of null.
+  function apiCall_(fnName, args, allowRetry) {
     setBusy(true);
     return new Promise((resolve, reject) => {
       google.script.run
-        .withSuccessHandler((r) => { setBusy(false); resolve(r); })
+        .withSuccessHandler((r) => {
+          setBusy(false);
+          if (r === null || r === undefined) {
+            if (allowRetry) { apiCall_(fnName, args, false).then(resolve).catch(reject); return; }
+            reject(new Error('The server returned no data for ' + fnName + ', even after retrying. This usually means a dropped connection between the browser and Apps Script (common on Safari) — reload the page and try again.'));
+            return;
+          }
+          resolve(r);
+        })
         .withFailureHandler((err) => { setBusy(false); reject(err); })
         [fnName](...args);
     });
