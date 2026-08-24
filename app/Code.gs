@@ -10,9 +10,30 @@
 function doGet(e) {
   const appTitle = getConfigValue_('AppTitle', 'Chitty Kampany');
   const theme = getConfigValue_('Theme', 'classic');
+  const page = (e && e.parameter && e.parameter.page) || '';
+
+  // The open, no-login receipt checker — reachable from a deployment
+  // running as the script owner (see README) so anyone holding a receipt
+  // can use it without needing a Chitty Kampany account. It's a separate,
+  // deliberately minimal template rather than a hidden view inside Index,
+  // so it stays a clean single-purpose page. verifyReceipt() itself (in
+  // Receipts.gs) is what's actually safe to expose here — everything else
+  // callable from Index still requires requireRole_(), which fails closed
+  // for a visitor an owner-executed script can't identify.
+  if (page === 'verify') {
+    const vTemplate = HtmlService.createTemplateFromFile('Verify');
+    vTemplate.appTitle = appTitle;
+    vTemplate.themeClass = 'theme-' + theme;
+    vTemplate.appVersion = APP_VERSION;
+    return vTemplate.evaluate()
+      .setTitle(appTitle + ' — Verify a receipt')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
+
   const template = HtmlService.createTemplateFromFile('Index');
   template.appTitle = appTitle;
   template.themeClass = 'theme-' + theme;
+  template.appVersion = APP_VERSION;
   return template.evaluate()
     .setTitle(appTitle)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
@@ -68,7 +89,7 @@ function logPayment(chitId, memberId, amount, mode) {
   const today = new Date();
   const collectionId = newId_('COL');
 
-  appendRow_(SHEETS.COLLECTIONS, {
+  const row = {
     CollectionID: collectionId,
     ChitID: chitId,
     MemberID: memberId,
@@ -79,7 +100,9 @@ function logPayment(chitId, memberId, amount, mode) {
     AgentEmail: user.Email,
     Timestamp: today,
     Notes: ''
-  });
+  };
+  row.Seal = buildCollectionSeal_(row); // see Receipts.gs — makes the receipt Ref code independently verifiable
+  appendRow_(SHEETS.COLLECTIONS, row);
 
   const member = listMembersById_()[memberId];
   // collectionId doubles as the receipt's Ref code — see Notifications.gs for why.
@@ -300,7 +323,7 @@ function logCatchupPayment(chitId, memberId, amount, mode) {
   const chit = getChitById_(chitId);
   const today = new Date();
 
-  appendRow_(SHEETS.COLLECTIONS, {
+  const row = {
     CollectionID: newId_('COL'),
     ChitID: chitId,
     MemberID: memberId,
@@ -311,7 +334,9 @@ function logCatchupPayment(chitId, memberId, amount, mode) {
     AgentEmail: user.Email,
     Timestamp: today,
     Notes: 'Late-join catch-up payment'
-  });
+  };
+  row.Seal = buildCollectionSeal_(row); // see Receipts.gs
+  appendRow_(SHEETS.COLLECTIONS, row);
 
   const enrollment = getAllEnrollmentsForChit_(chitId).find(function (e) { return e.MemberID === memberId; });
   if (enrollment) {

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --ink: #16324f; --ink-soft: #4b6178; --line: #d7dee6; --bg: #f6f8fa;
+      --card: #ffffff; --good: #1c7c4d; --bad: #b3261e; --accent: #16324f;
+    }
+    body.theme-ocean   { --ink: #0b5394; --ink-soft: #4a7fa8; --line: #cfe0ec; --bg: #f2f8fc; --accent: #0b5394; }
+    body.theme-sunrise { --ink: #b45309; --ink-soft: #a9714a; --line: #f0dfcb; --bg: #fdf8f2; --accent: #b45309; }
+    body.theme-forest  { --ink: #1f5138; --ink-soft: #4f7864; --line: #d3e3d9; --bg: #f4f9f6; --accent: #1f5138; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: #1a1a1a; margin: 0; padding-bottom: 40px; }
+    header { background: var(--ink); color: #fff; padding: 14px 16px; }
+    header h1 { margin: 0; font-size: 18px; }
+    header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+    main { padding: 16px; max-width: 480px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-top: 20px; }
+    .card h2 { margin: 0 0 6px; font-size: 16px; color: var(--ink); }
+    .card p.hint { font-size: 13px; color: var(--ink-soft); margin: 0 0 14px; }
+    label { display: block; font-size: 13px; color: var(--ink-soft); margin: 10px 0 4px; }
+    input { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 15px; background: #fff; }
+    button.primary { margin-top: 14px; width: 100%; padding: 11px; background: var(--ink); color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+    button.primary:disabled { opacity: 0.5; }
+    .result { margin-top: 16px; padding: 14px; border-radius: 8px; font-size: 14px; }
+    .result.ok { background: #e6f4ec; color: var(--good); }
+    .result.err { background: #fbe9e7; color: var(--bad); }
+    .result dl { margin: 8px 0 0; font-size: 13px; color: #1a1a1a; }
+    .result dt { font-weight: 600; display: inline; }
+    .result dd { display: inline; margin: 0 12px 0 4px; }
+    footer { text-align: center; font-size: 11px; color: var(--ink-soft); padding: 24px 16px 10px; }
+    footer a { color: var(--ink-soft); }
+  </style>
+</head>
+<body class="<?= themeClass ?>">
+
+<header>
+  <h1><?= appTitle ?></h1>
+  <div class="sub">Verify a receipt</div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Check a Ref code</h2>
+    <p class="hint">Paste the Ref code from a payment receipt below. This only confirms whether that exact code matches a genuinely recorded payment — it doesn't need an account or login.</p>
+    <label>Ref code</label>
+    <input id="code" placeholder="e.g. COL-1755000038184-232" autocomplete="off" autocapitalize="off" />
+    <button class="primary" id="checkBtn" onclick="check()">Check</button>
+    <div id="result"></div>
+  </div>
+</main>
+
+<footer>
+  Chitty Kampany v<?= appVersion ?> — <a href="https://github.com/arkarjun/ChiityKampany" target="_blank" rel="noopener">open-source</a>
+</footer>
+
+<script>
+  function setBusy(busy) {
+    document.getElementById('checkBtn').disabled = busy;
+    document.getElementById('checkBtn').textContent = busy ? 'Checking…' : 'Check';
+  }
+
+  function callVerify(code, allowRetry) {
+    return new Promise(function (resolve, reject) {
+      google.script.run
+        .withSuccessHandler(function (r) {
+          if (r === null || r === undefined) {
+            if (allowRetry) { callVerify(code, false).then(resolve).catch(reject); return; }
+            reject(new Error('No response from the server — reload the page and try again.'));
+            return;
+          }
+          resolve(r);
+        })
+        .withFailureHandler(reject)
+        .verifyReceipt(code);
+    });
+  }
+
+  function renderResult(r) {
+    const el = document.getElementById('result');
+    if (r.valid) {
+      el.innerHTML =
+        '<div class="result ok">✅ Genuine — this Ref code matches a recorded payment.' +
+        '<dl>' +
+        '<dt>Chit:</dt><dd>' + r.chitName + '</dd><br/>' +
+        '<dt>Amount:</dt><dd>₹' + r.amount + '</dd><br/>' +
+        '<dt>Date:</dt><dd>' + r.date + '</dd><br/>' +
+        '<dt>Mode:</dt><dd>' + r.mode + '</dd>' +
+        '</dl></div>';
+    } else {
+      el.innerHTML = '<div class="result err">❌ Not verified — this code doesn\'t match a genuine recorded payment. If you received this on a receipt, please check with the committee directly.</div>';
+    }
+  }
+
+  function check() {
+    const code = document.getElementById('code').value.trim();
+    const el = document.getElementById('result');
+    el.innerHTML = '';
+    if (!code) return;
+    setBusy(true);
+    callVerify(code, true)
+      .then(function (r) { setBusy(false); renderResult(r); })
+      .catch(function (e) {
+        setBusy(false);
+        el.innerHTML = '<div class="result err">Could not check right now: ' + e.message + '</div>';
+      });
+  }
+
+  document.getElementById('code').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') check();
+  });
+</script>
+
+</body>
+</html>

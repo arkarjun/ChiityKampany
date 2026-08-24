@@ -150,6 +150,7 @@
       <button class="secondary" data-tab="members" onclick="showAdminTab('members')">Members</button>
       <button class="secondary" data-tab="users" onclick="showAdminTab('users')">Users</button>
       <button class="secondary" data-tab="holidays" onclick="showAdminTab('holidays')">Holidays</button>
+      <button class="secondary" data-tab="verify" onclick="showAdminTab('verify')">Verify</button>
       <button class="secondary" data-tab="settings" onclick="showAdminTab('settings')">Settings</button>
     </div>
 
@@ -319,6 +320,18 @@
         <h2>Holiday calendar</h2>
         <div id="holidaysMsg"></div>
         <table id="holidayList"><tr><th>Date</th><th>Description</th></tr></table>
+      </div>
+    </div>
+
+    <!-- Verify -->
+    <div id="tab-verify" class="admin-tab hidden">
+      <div class="card">
+        <h2>Verify a receipt</h2>
+        <p style="font-size:13px; color:var(--ink-soft); margin-top:0;">Paste the Ref code from a payment receipt to confirm it was genuinely logged. Members can check their own receipts the same way, without logging in, from the app's separate public Verify link — see README for that URL.</p>
+        <label>Ref code</label>
+        <input id="adminVerifyCode" placeholder="e.g. COL-1755000038184-232" />
+        <button class="primary" onclick="doAdminVerify()">Check</button>
+        <div id="adminVerifyResult"></div>
       </div>
     </div>
 
@@ -499,7 +512,30 @@
     if (name === 'members') loadMembersList();
     if (name === 'users') loadUsers();
     if (name === 'holidays') loadHolidays();
+    if (name === 'verify') document.getElementById('adminVerifyResult').innerHTML = '';
     if (name === 'settings') loadSettings();
+  }
+
+  // ---------------- Verify a receipt (admin convenience) ----------------
+  // Same server-side check the public, no-login Verify page uses (see
+  // Receipts.gs verifyReceipt() and Verify.html) — just reachable here too
+  // for an admin who's already logged in and wants a quick answer without
+  // leaving the app.
+  async function doAdminVerify() {
+    const code = document.getElementById('adminVerifyCode').value.trim();
+    const resultEl = document.getElementById('adminVerifyResult');
+    resultEl.innerHTML = '';
+    if (!code) return;
+    try {
+      const r = await api('verifyReceipt', code);
+      if (r.valid) {
+        resultEl.innerHTML = '<div class="msg ok">Genuine — ₹' + r.amount + ' (' + r.mode + ') on ' + r.date + ' for "' + r.chitName + '".</div>';
+      } else {
+        resultEl.innerHTML = '<div class="msg err">Not verified — no matching genuine payment found for this code.</div>';
+      }
+    } catch (e) {
+      showMsg('adminVerifyResult', 'Could not check: ' + e.message, false);
+    }
   }
 
   // ---------------- Collect screen ----------------
@@ -1242,7 +1278,7 @@
 </script>
 
 <footer class="app-footer">
-  Powered by Chitty Kampany — <a href="https://github.com/arkarjun/ChiityKampany" target="_blank" rel="noopener">an open-source app</a> · built with ♥ by arkarjun
+  Powered by Chitty Kampany v<?= appVersion ?> — <a href="https://github.com/arkarjun/ChiityKampany" target="_blank" rel="noopener">an open-source app</a> · built with ♥ by arkarjun
 </footer>
 
 </body>

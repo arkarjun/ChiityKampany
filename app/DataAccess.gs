@@ -5,8 +5,18 @@
  * and row<->object conversion only need to be correct in one place.
  */
 
+/**
+ * Opens the spreadsheet this app runs against. A STANDALONE script (its own
+ * project at script.google.com, not pasted into the Sheet's own Extensions
+ * menu) has no "active spreadsheet" of its own, so it needs to be told the
+ * Sheet's ID explicitly — see setSheetId_() in Setup.gs, a one-time step in
+ * that setup path. Falls back to the old container-bound behavior when no
+ * ID has been set, so an existing container-bound deployment keeps working
+ * unchanged after pulling in this file.
+ */
 function getSS_() {
-  return SpreadsheetApp.getActiveSpreadsheet();
+  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  return sheetId ? SpreadsheetApp.openById(sheetId) : SpreadsheetApp.getActiveSpreadsheet();
 }
 
 function getSheet_(sheetName) {

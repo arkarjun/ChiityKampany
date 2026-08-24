@@ -44,9 +44,14 @@ const COLUMNS = {
     'EnrollmentID', 'ChitID', 'MemberID', 'JoinDate', 'JoinType',
     'CatchUpAmountDue', 'CatchUpAmountPaid', 'Status', 'MemberName'
   ],
+  // 'Seal' is appended at the end (same reasoning as 'Deleted' above). It's
+  // written only by logPayment()/logCatchupPayment() in Code.gs, computed
+  // from a secret that never leaves the script's own private settings —
+  // see Receipts.gs. A row typed directly into the sheet, however
+  // convincing, will have a blank or wrong Seal and fail verifyReceipt().
   Collections: [
     'CollectionID', 'ChitID', 'MemberID', 'Date', 'Amount', 'Mode',
-    'EntryType', 'AgentEmail', 'Timestamp', 'Notes', 'Deleted'
+    'EntryType', 'AgentEmail', 'Timestamp', 'Notes', 'Deleted', 'Seal'
   ],
   Draws: [
     'DrawID', 'ChitID', 'RoundNumber', 'DrawDate', 'WinnerMemberID',
@@ -104,3 +109,8 @@ const COMMISSION_TYPE = {
 const MODE = { CASH: 'CASH', UPI: 'UPI' };
 
 const DRAW_ATTEMPT_STATUS = { PENDING: 'PENDING', RECORDED: 'RECORDED', REDRAWN: 'REDRAWN' };
+
+// Bumped by hand on any release worth calling out — shown in the footer and
+// in CHANGELOG.md. Format: <major>.<minor>.<patch> — major for breaking
+// setup/data changes, minor for new features, patch for fixes only.
+const APP_VERSION = '1.0.0';

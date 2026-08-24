@@ -23,6 +23,7 @@ function setupSheets() {
 
   applyValidation_();
   seedConfigAndFirstAdmin_();
+  getSealSecret_(); // proactively bootstraps the receipt-seal secret — see Receipts.gs
 
   // Everything above this point has already been written to the sheet by
   // now — SpreadsheetApp writes commit immediately, they don't roll back if
@@ -96,6 +97,22 @@ function seedConfigAndFirstAdmin_() {
   if (!alreadyThere) {
     appendRow_(SHEETS.USERS, { Email: email, Name: email.split('@')[0], Role: ROLE.ADMIN, Active: true });
   }
+}
+
+/**
+ * One-time step for a STANDALONE deployment only (a script project at
+ * script.google.com, not pasted into the Sheet's own Extensions > Apps
+ * Script — see README). Run this once, with your spreadsheet's ID pasted
+ * in as the argument, BEFORE running setupSheets(): a standalone script
+ * has no "active spreadsheet" of its own, so every other function needs to
+ * be told which Sheet to use. The ID is the long string in the Sheet's own
+ * URL, between /d/ and /edit. Not needed for the older container-bound
+ * setup — getSS_() falls back to the active spreadsheet when this hasn't
+ * been set.
+ */
+function setSheetId_(sheetId) {
+  PropertiesService.getScriptProperties().setProperty('SHEET_ID', sheetId);
+  Logger.log('Sheet ID saved. You can now run setupSheets().');
 }
 
 function onOpen() {
