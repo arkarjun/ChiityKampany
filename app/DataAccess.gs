@@ -13,16 +13,35 @@
  * that setup path. Falls back to the old container-bound behavior when no
  * ID has been set, so an existing container-bound deployment keeps working
  * unchanged after pulling in this file.
+ *
+ * Cached for the lifetime of the current execution (see _ssCache_ below) —
+ * every readAll_()/appendRow_()/updateRow_() call used to re-open the
+ * spreadsheet from scratch, even multiple times within one screen load.
  */
+var _ssCache_ = null;
+var _sheetCache_ = {};
+
 function getSS_() {
-  const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
-  return sheetId ? SpreadsheetApp.openById(sheetId) : SpreadsheetApp.getActiveSpreadsheet();
+  if (!_ssCache_) {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    _ssCache_ = sheetId ? SpreadsheetApp.openById(sheetId) : SpreadsheetApp.getActiveSpreadsheet();
+  }
+  return _ssCache_;
 }
 
+/**
+ * Also cached per execution, same reasoning as getSS_() — a screen like the
+ * dashboard reads the same sheet (e.g. Collections) many times over in one
+ * request, and re-resolving it by name every time added up. Safe to cache:
+ * the Sheet object stays valid for writes made later in the same execution
+ * too (an appendRow_() right after is still visible on the next read).
+ */
 function getSheet_(sheetName) {
+  if (_sheetCache_[sheetName]) return _sheetCache_[sheetName];
   const ss = getSS_();
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) throw new Error('Missing sheet: ' + sheetName + '. Run setupSheets() from Setup.gs first.');
+  _sheetCache_[sheetName] = sheet;
   return sheet;
 }
 

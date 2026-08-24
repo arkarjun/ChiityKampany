@@ -53,6 +53,26 @@ function listMembersById_() {
 
 // ---------- Agent screen ----------
 
+/**
+ * Combines whoAmI() + listChitsForCollection() + (for the first chit)
+ * listActiveMembersForChit() into a single google.script.run round trip.
+ * Index.html's initial page load used to await all three of those in
+ * sequence before the Collect screen was actually usable — each
+ * google.script.run call pays a real network round trip on top of Apps
+ * Script's own per-call overhead, so three in a row was a visible chunk of
+ * "why is this taking so long to load." This calls the exact same
+ * role-checked functions internally (no new access rule, just fewer trips
+ * across the wire) and is used only by the initial page load — every other
+ * screen still calls the individual functions as before.
+ */
+function bootstrapCollectScreen() {
+  const user = whoAmI();
+  if (!user.registered) return { user: user, chits: [], firstChitMembers: [] };
+  const chits = listChitsForCollection();
+  const firstChitMembers = chits.length ? listActiveMembersForChit(chits[0].chitId) : [];
+  return { user: user, chits: chits, firstChitMembers: firstChitMembers };
+}
+
 function listChitsForCollection() {
   requireRole_([ROLE.AGENT, ROLE.ADMIN]);
   return readAll_(SHEETS.CHITS)
@@ -463,7 +483,7 @@ function getChitLedger(chitId) {
     const memberCollections = collections.filter(function (c) { return c.MemberID === e.MemberID; });
     const installmentsPaid = memberCollections.filter(function (c) { return c.EntryType === ENTRY_TYPE.INSTALLMENT; }).length;
     const totalPaid = memberCollections.reduce(function (sum, c) { return sum + Number(c.Amount); }, 0);
-    const arrears = e.Status === ENROLLMENT_STATUS.ACTIVE ? getMemberArrears_(chit, e, today) : 0;
+    const arrears = e.Status === ENROLLMENT_STATUS.ACTIVE ? getMemberArrears_(chit, e, today, collections) : 0;
     return {
       memberId: e.MemberID,
       name: member.Name,
@@ -552,9 +572,18 @@ function getDashboardSummary(fromDateStr, toDateStr, chitId) {
     byAgent[c.AgentEmail] = (byAgent[c.AgentEmail] || 0) + Number(c.Amount);
   });
 
+  // Read Enrollments and Members ONCE here and hand them to every per-chit
+  // helper below, instead of letting each one re-read the whole sheet for
+  // every single chit (and, for arrears, every single member within it).
+  // That N+1 pattern used to turn one dashboard load into 70+ full-sheet
+  // reads on a modest committee — see CHANGELOG.md.
+  const allEnrollments = readAll_(SHEETS.ENROLLMENTS);
+  const members = readAll_(SHEETS.MEMBERS);
+  const preloaded = { members: members, allEnrollments: allEnrollments, allCollections: allCollections };
+
   const perChit = chits.map(function (chit) {
-    const summary = getChitCollectionSummary_(chit, toDate);
-    const defaulters = getDefaultersForChit_(chit.ChitID, toDate);
+    const summary = getChitCollectionSummary_(chit, toDate, preloaded);
+    const defaulters = getDefaultersForChit_(chit.ChitID, toDate, Object.assign({ chit: chit }, preloaded));
     return {
       chitId: chit.ChitID,
       name: chit.Name,
@@ -574,10 +603,19 @@ function getDashboardSummary(fromDateStr, toDateStr, chitId) {
   };
 }
 
-/** Expected-vs-collected as of a given date (defaults to today) — "as of" bounds both sides, so a payment logged after asOfDate doesn't inflate a past snapshot. */
-function getChitCollectionSummary_(chit, asOfDate) {
+/**
+ * Expected-vs-collected as of a given date (defaults to today) — "as of"
+ * bounds both sides, so a payment logged after asOfDate doesn't inflate a
+ * past snapshot.
+ *
+ * preloaded: optional { allEnrollments, allCollections } to avoid re-reading
+ * those sheets when the caller (the dashboard) already has them loaded for
+ * every chit in the loop. Omit it and this reads them itself.
+ */
+function getChitCollectionSummary_(chit, asOfDate, preloaded) {
   const today = asOfDate || new Date();
-  const enrollments = getActiveEnrollments_(chit.ChitID);
+  const allEnrollments = (preloaded && preloaded.allEnrollments) || readAll_(SHEETS.ENROLLMENTS);
+  const enrollments = allEnrollments.filter(function (e) { return e.ChitID === chit.ChitID && e.Status === ENROLLMENT_STATUS.ACTIVE; });
   let expected = 0;
   enrollments.forEach(function (e) {
     const effectiveStart = e.JoinDate > chit.StartDate ? e.JoinDate : chit.StartDate;
@@ -585,7 +623,8 @@ function getChitCollectionSummary_(chit, asOfDate) {
     expected += ticks * Number(chit.InstallmentAmount);
   });
   const todayStr = formatDate_(today);
-  const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) {
+  const allCollections = (preloaded && preloaded.allCollections) || readAll_(SHEETS.COLLECTIONS);
+  const collections = allCollections.filter(function (c) {
     return c.ChitID === chit.ChitID && !c.Deleted && formatDate_(c.Date) <= todayStr;
   });
   const collected = collections.reduce(function (s, c) { return s + Number(c.Amount); }, 0);

@@ -465,11 +465,16 @@
   }
 
   window.onload = async function () {
+    // One combined round trip (whoAmI + the chit list + the first chit's
+    // members) instead of three sequential ones — see bootstrapCollectScreen()
+    // in Code.gs for why that mattered for initial load time.
+    let boot;
     try {
-      CURRENT_USER = await api('whoAmI');
+      boot = await api('bootstrapCollectScreen');
     } catch (e) {
-      CURRENT_USER = { registered: false, email: '(unknown)' };
+      boot = { user: { registered: false, email: '(unknown)' }, chits: [], firstChitMembers: [] };
     }
+    CURRENT_USER = boot.user;
 
     if (!CURRENT_USER.registered) {
       document.getElementById('deniedEmail').textContent = CURRENT_USER.email;
@@ -486,7 +491,7 @@
     }
 
     showScreen('collect');
-    await loadCollectChits();
+    renderCollectChits(boot.chits, boot.firstChitMembers);
   };
 
   // ---------------- Screen switching ----------------
@@ -545,6 +550,24 @@
     const sel = document.getElementById('collectChit');
     sel.innerHTML = collectChits.map(c => `<option value="${c.chitId}">${c.name}</option>`).join('');
     if (collectChits.length) onCollectChitChange();
+  }
+
+  /**
+   * Renders the Collect chit dropdown (and, for the first chit, its member
+   * dropdown) from data the server already sent — used by the initial page
+   * load, which gets both from bootstrapCollectScreen() in one round trip.
+   * Kept separate from loadCollectChits() above, which still fetches the
+   * chit list itself and is left in place for any future manual refresh.
+   */
+  function renderCollectChits(chits, firstChitMembers) {
+    collectChits = chits;
+    const sel = document.getElementById('collectChit');
+    sel.innerHTML = collectChits.map(c => `<option value="${c.chitId}">${c.name}</option>`).join('');
+    if (!collectChits.length) return;
+    const chit = collectChits[0];
+    document.getElementById('collectAmount').value = chit.installmentAmount;
+    document.getElementById('collectMember').innerHTML =
+      firstChitMembers.map(m => `<option value="${m.memberId}">${m.name}</option>`).join('') || '<option disabled>No active members</option>';
   }
 
   async function onCollectChitChange() {

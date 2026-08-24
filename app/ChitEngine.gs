@@ -118,8 +118,15 @@ function computeCatchupAmountDue_(chit, joinDate) {
  * settles pre-join ticks separately and isn't counted here). The
  * difference, if positive, is how many installments they're in default on.
  * No grace period: one unpaid due date is enough to flag as in default.
+ *
+ * allCollections: optionally pass an already-loaded Collections array (e.g.
+ * from the dashboard, which reads it once up front for every chit/member
+ * rather than letting this function re-read the whole sheet per member —
+ * that N+1 pattern was the single biggest cost on the dashboard and a
+ * chit's ledger screen). Falls back to reading it directly if omitted, so
+ * any caller that doesn't have it preloaded still works unchanged.
  */
-function getMemberArrears_(chit, enrollment, asOfDate) {
+function getMemberArrears_(chit, enrollment, asOfDate, allCollections) {
   const effectiveStart = enrollment.JoinDate > chit.StartDate ? enrollment.JoinDate : chit.StartDate;
   const ticksDue = generateTicks_(effectiveStart, chit.FrequencyType, null, asOfDate, chit.CustomDays).length;
   // Bounded by asOfDate: when this is called with a past date (the dashboard's
@@ -127,7 +134,8 @@ function getMemberArrears_(chit, enrollment, asOfDate) {
   // "already paid as of that date" — otherwise a later payment would silently
   // erase a past arrears figure that was real at the time.
   const asOfStr = formatDate_(asOfDate);
-  const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) {
+  const collectionsSource = allCollections || readAll_(SHEETS.COLLECTIONS);
+  const collections = collectionsSource.filter(function (c) {
     return c.ChitID === chit.ChitID && c.MemberID === enrollment.MemberID &&
       c.EntryType === ENTRY_TYPE.INSTALLMENT && !c.Deleted && formatDate_(c.Date) <= asOfStr;
   });
@@ -135,14 +143,26 @@ function getMemberArrears_(chit, enrollment, asOfDate) {
   return Math.max(0, ticksDue - paidCount);
 }
 
-/** All members in default (arrears > 0) for one chit, as of a given date (defaults to today). */
-function getDefaultersForChit_(chitId, asOfDate) {
-  const chit = getChitById_(chitId);
+/**
+ * All members in default (arrears > 0) for one chit, as of a given date
+ * (defaults to today).
+ *
+ * preloaded: optional { chit, members, allEnrollments, allCollections } to
+ * skip re-reading sheets already loaded by the caller — used by the
+ * dashboard, which calls this once per chit and would otherwise trigger a
+ * fresh Chits/Members/Enrollments/Collections read every single time.
+ * Omit it and this reads everything itself, same as before.
+ */
+function getDefaultersForChit_(chitId, asOfDate, preloaded) {
+  const chit = (preloaded && preloaded.chit) || getChitById_(chitId);
   if (!chit) return [];
   const today = asOfDate || new Date();
-  const members = readAll_(SHEETS.MEMBERS);
-  return getActiveEnrollments_(chitId).map(function (e) {
-    const arrears = getMemberArrears_(chit, e, today);
+  const members = (preloaded && preloaded.members) || readAll_(SHEETS.MEMBERS);
+  const allEnrollments = (preloaded && preloaded.allEnrollments) || readAll_(SHEETS.ENROLLMENTS);
+  const enrollments = allEnrollments.filter(function (e) { return e.ChitID === chitId && e.Status === ENROLLMENT_STATUS.ACTIVE; });
+  const allCollections = (preloaded && preloaded.allCollections) || readAll_(SHEETS.COLLECTIONS);
+  return enrollments.map(function (e) {
+    const arrears = getMemberArrears_(chit, e, today, allCollections);
     const member = members.find(function (m) { return m.MemberID === e.MemberID; });
     return { memberId: e.MemberID, memberName: member ? member.Name : '(unknown)', arrearsCount: arrears };
   }).filter(function (row) { return row.arrearsCount > 0; });

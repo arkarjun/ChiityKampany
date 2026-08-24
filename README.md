@@ -2,7 +2,7 @@
 
 A small, open-source, low-tech tool for digitizing how a chit fund committee runs its daily collections and draws.
 
-Chitty Kampany replaces the paper registers a field agent currently carries with a phone-based collection screen, and gives the committee a live, auditable ledger instead of reconciling notebooks by hand. It runs entirely on Google Sheets and Google Apps Script — no server, no hosting bill, and no IT team required to keep it alive. Current version: **v1.0.1** — see [`CHANGELOG.md`](CHANGELOG.md) for release history.
+Chitty Kampany replaces the paper registers a field agent currently carries with a phone-based collection screen, and gives the committee a live, auditable ledger instead of reconciling notebooks by hand. It runs entirely on Google Sheets and Google Apps Script — no server, no hosting bill, and no IT team required to keep it alive. Current version: **v1.0.2** — see [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Why it's built this way
 
@@ -55,11 +55,15 @@ The whole app lives in [`app/`](app) — plain Apps Script files and two HTML fi
 
 ## Status
 
-v1.0.1 — the app's feature set is considered complete for a v1 chit-fund committee: chit onboarding and lifecycle across all six frequency types, agent collection with duplicate warnings, provably-fair spin-wheel draws with an audit trail, a date-range dashboard, configurable branding and message templates, verifiable receipts, and role-based access control. See `CHANGELOG.md` for what changed to get here. Not yet handled: broader member self-service beyond checking one receipt, automatic (non-tap-to-send) WhatsApp sending, exportable reports, multi-committee deployments, and a member exiting a chit before winning.
+v1.0.2 — the app's feature set is considered complete for a v1 chit-fund committee: chit onboarding and lifecycle across all six frequency types, agent collection with duplicate warnings, provably-fair spin-wheel draws with an audit trail, a date-range dashboard, configurable branding and message templates, verifiable receipts, and role-based access control. See `CHANGELOG.md` for what changed to get here. Not yet handled: broader member self-service beyond checking one receipt, automatic (non-tap-to-send) WhatsApp sending, exportable reports, multi-committee deployments, and a member exiting a chit before winning.
 
 ## Contributing
 
 This project is open source under the MIT license — issues and pull requests are welcome. If you're running your own chit fund and adapt this, a copy of your Sheet template plus the `app/` script is all you need; no shared infrastructure to coordinate with anyone else.
+
+## Built with AI
+
+The code, the setup guide, and this page were built with Claude (Anthropic) working alongside the project owner — every change reviewed, tested, and verified before it shipped, the same rigor as any other change to this repo. Mentioned here for transparency, not as a disclaimer.
 
 ## License
 
