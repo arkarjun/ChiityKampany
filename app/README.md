@@ -1,6 +1,6 @@
-# Chitty Kampany — setup guide (v1.0.0)
+# Chitty Kampany — setup guide
 
-This is the full source for the Google Sheets + Apps Script version described in `ChittyKampany-Brief.md`. Setting it up is a one-time, roughly 15-20 minute task — the same steps anyone else forking this project would follow. See `CHANGELOG.md` for version history.
+This is the full source for the Google Sheets + Apps Script version described in `ChittyKampany-Brief.md`. Setting it up is a one-time, roughly 15-20 minute task — the same steps anyone else forking this project would follow.
 
 ## 1. Create the Sheet
 
@@ -10,7 +10,7 @@ Go to `sheets.new` to create a blank Google Sheet, name it (e.g. "Chitty Kampany
 
 You have two options here, and they matter for more than just where the code lives — see "Why a standalone project" below.
 
-**Recommended: a standalone project.** Go to [script.google.com](https://script.google.com) → **New project**. This keeps the code (and the secret behind the receipt-verification feature — see step 6 and `Receipts.gs`) genuinely private, separate from the Sheet's own sharing.
+**Recommended: a standalone project.** Go to [script.google.com](https://script.google.com) → **New project**. This keeps the code (and the secret behind the receipt-verification feature — see "Verifying a receipt" below and `Receipts.gs`) genuinely private, separate from the Sheet's own sharing.
 
 **Simpler, but agents can see the code too: a container-bound script.** On the Sheet itself, open **Extensions → Apps Script**. Faster to set up, one fewer thing to configure — but Google ties a container-bound script's access to the container's own sharing list, so anyone you give Editor access to on the Sheet (every agent, per step 7) can also open and edit this code, and read anything stored in its Script Properties. Only choose this if you're comfortable with that, or you're just trying the app out.
 
@@ -42,7 +42,7 @@ File paste order doesn't matter — Apps Script loads them all into one shared s
 
 ## 4. Run setup once
 
-In the toolbar, pick `setupSheets` from the function dropdown and click **Run**. The first time, Google will show an "unverified app" warning — this is expected for a script you just wrote yourself; click **Advanced → Go to (your project name) (unsafe) → Allow**. This creates all nine tabs with headers and dropdowns, registers your own Google account as the first admin, and generates the private secret behind the receipt-verification feature (see step 6 and `Receipts.gs`) — a one-time random value stored only in this script's own Project Settings, never in the Sheet.
+In the toolbar, pick `setupSheets` from the function dropdown and click **Run**. The first time, Google will show an "unverified app" warning — this is expected for a script you just wrote yourself; click **Advanced → Go to (your project name) (unsafe) → Allow**. This creates all nine tabs with headers and dropdowns, registers your own Google account as the first admin, and generates the private secret behind the receipt-verification feature (see "Verifying a receipt" below and `Receipts.gs`) — a one-time random value stored only in this script's own Project Settings, never in the Sheet.
 
 Open the **Config** tab and set the `CommitteeName` value to your committee's actual name.
 
@@ -54,7 +54,7 @@ To load it: open each tab in the demo file, select all, copy, and paste over the
 
 ## 5. Deploy as a web app — two deployments
 
-Chitty Kampany now uses **two separate deployments of the same project**: the main app (agents and admins, identity-checked) and a small public receipt-checker (no login, for members). They serve different purposes and need different settings, so create both.
+Chitty Kampany uses **two separate deployments of the same project**: the main app (agents and admins, identity-checked) and a small public receipt-checker (no login, for members). They serve different purposes and need different settings, so create both.
 
 **Deployment A — the main app.** Deploy → New deployment → gear icon → Web app. Set "Execute as" to **User accessing the web app**, and "Who has access" to **Anyone with a Google account** (or "Anyone within [your organization]" if you're on Google Workspace, not a personal Gmail). Click **Deploy**, authorize again if prompted, and copy the **Web app URL** — this is the link agents and admins use.
 
@@ -86,21 +86,11 @@ Every payment receipt (WhatsApp or email) includes a Ref code — the Collection
 
 This isn't just "does a matching row exist" — a hand-typed row in the Collections sheet can look just as plausible as a real one, since agents need direct edit access to that sheet for the app to work at all. Every row `logPayment()`/`logCatchupPayment()` actually creates gets a hidden `Seal` — a value computed from that row's own details plus the private secret from step 4, which never leaves this script's own settings. `verifyReceipt()` recomputes what the seal *should* be and compares it to what's stored; a hand-typed row, however convincing its CollectionID looks, won't have a matching one. See `Receipts.gs` for the full reasoning.
 
-## Updating an existing deployment
-
-If you already have Chitty Kampany set up and are pulling in a newer version of the script (adding fields like deletion, duplicate warnings, custom collection days, a MemberName lookup on Enrollments, or the v1.0.0 receipt-verification feature), a few extra steps are needed beyond just replacing the file contents:
-
-1. **Re-run `setupSheets`** from the function dropdown once, the same way you did in step 4. It's safe to run again — it never touches existing data — but it will add any new columns (like `Deleted`, `CustomDays`, `MemberName`, or `Seal`) to the end of a sheet's header row if they're missing, and it will generate the receipt-verification secret if this is your first time updating to v1.0.0 or later.
-2. **Deploy a new version of each deployment** (Deploy → Manage deployments → edit the pencil next to it → New version → Deploy). Editing the script alone doesn't reach either live URL — a new version of each does.
-3. **New in v1.0.0, only if you want the Verify feature and don't have it yet:** add `Receipts.gs` and `Verify.html` if you haven't already (step 3), and set up Deployment B (step 5) — everything else keeps working without them, but existing receipts sent before this update won't have a `Seal` and so won't verify as genuine (they were never wrong, this feature simply didn't exist yet when they were sent).
-
-Note on `MemberName`: it's a live lookup formula, not a stored value, and only gets written into new Enrollments rows going forward — existing rows will show it blank until you delete and re-add that enrollment, if you want it backfilled.
-
 ## Known limitation: deleted catch-up payments
 
 Deleting a late-joiner's catch-up payment record removes it from ledgers and totals immediately, but the running "catch-up amount paid" total stored on their enrollment isn't automatically re-adjusted. Late joiners are already the rare exception, so this is flagged rather than built out — if it comes up, correct that figure by hand on the Enrollments tab.
 
-## What's deliberately not in v1
+## What's deliberately out of scope
 
 Matches the brief, with one narrow exception: members can check a specific receipt they already hold (see "Verifying a receipt" above), but there's still no broader member self-service — no login, no viewing their own chit history or balance beyond that one lookup. Also no automatic WhatsApp sending (tap-to-send links only — see Admin → Settings for the message templates), no exports, single committee per deployment, no custom logo/image upload (app title and colour theme are configurable, under Admin → Settings), and no explicit flow for a member dropping out of a chit before ever winning — handle that manually for now.
 
@@ -108,4 +98,4 @@ Matches the brief, with one narrow exception: members can check a specific recei
 
 The `Config`, `Users`, `Chits`, `Enrollments`, `Collections`, `Draws`, `Holidays`, and `Members` tabs are all plain data — you can always open the Sheet directly to see exactly what the app has recorded, which is the point of building it this way. Deleting a member, chit, or payment record from inside the app never removes its row from the Sheet — it only hides it from dropdowns, lists, and totals going forward, so that history stays intact.
 
-A Collections row with a blank `Seal` column is either a payment logged before you updated to v1.0.0, or one entered directly into the sheet rather than through the app — either way it just won't pass `Admin → Verify` or the public Verify link. That's expected, not a bug; log payments through the app going forward.
+A Collections row with a blank `Seal` column was entered directly into the sheet rather than through the app — it won't pass `Admin → Verify` or the public Verify link. That's expected, not a bug: only payments logged through the app get sealed.
