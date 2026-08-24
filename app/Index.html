@@ -16,9 +16,9 @@
     body.theme-forest  { --ink: #1f5138; --ink-soft: #4f7864; --line: #d3e3d9; --bg: #f4f9f6; --accent: #1f5138; }
     * { box-sizing: border-box; }
     body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: #1a1a1a; margin: 0; padding-bottom: 40px; }
-    header { background: var(--ink); color: #fff; padding: 14px 16px; }
+    header { background: var(--ink); color: #fff; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2px 12px; }
     header h1 { margin: 0; font-size: 18px; }
-    header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+    header .sub { font-size: 12px; opacity: 0.85; text-align: right; }
     nav { display: flex; gap: 8px; padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
     nav button { border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 8px 14px; border-radius: 20px; font-size: 14px; cursor: pointer; }
     nav button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
@@ -84,6 +84,20 @@
     .checkbox-list input[type=checkbox] { width: auto; }
     footer.app-footer { text-align: center; font-size: 11px; color: var(--ink-soft); padding: 20px 16px 10px; }
     footer.app-footer a { color: var(--ink-soft); }
+    /* Theme picker swatches: each button always shows ITS OWN colour, not the
+       currently active theme's colour (which is what var(--ink) etc. would give
+       them, since they'd all look identical). The 'selected' class marks the
+       current pick with a neutral ring rather than a colour change, so it reads
+       against any of the four swatch colours. */
+    .theme-swatch { border: none; color: #fff; }
+    .theme-swatch[data-theme="classic"] { background: #16324f; }
+    .theme-swatch[data-theme="ocean"]   { background: #0b5394; }
+    .theme-swatch[data-theme="sunrise"] { background: #b45309; }
+    .theme-swatch[data-theme="forest"]  { background: #1f5138; }
+    .theme-swatch.selected { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1a1a1a; }
+    .wheel-wrap { position: relative; width: 280px; max-width: 100%; margin: 16px auto; text-align: center; }
+    .wheel-wrap canvas { max-width: 100%; height: auto; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.15); }
+    .wheel-pointer { position: absolute; top: -4px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 18px solid var(--bad); z-index: 2; }
   </style>
 </head>
 <body class="<?= themeClass ?>">
@@ -132,6 +146,7 @@
     <div class="subnav" id="adminMainSubnav">
       <button class="secondary active" data-tab="dashboard" onclick="showAdminTab('dashboard')">Dashboard</button>
       <button class="secondary" data-tab="chits" onclick="showAdminTab('chits')">Chits</button>
+      <button class="secondary" data-tab="draw" onclick="showAdminTab('draw')">Draw</button>
       <button class="secondary" data-tab="members" onclick="showAdminTab('members')">Members</button>
       <button class="secondary" data-tab="users" onclick="showAdminTab('users')">Users</button>
       <button class="secondary" data-tab="holidays" onclick="showAdminTab('holidays')">Holidays</button>
@@ -142,16 +157,25 @@
     <div id="tab-dashboard" class="admin-tab">
       <div id="dashboardMsg"></div>
       <div class="card">
-        <h2>Today</h2>
-        <div class="stat-grid">
-          <div class="stat"><div class="n" id="dashToday">–</div><div class="l">Collected today (₹)</div></div>
-          <div class="stat"><div class="n" id="dashAgentCount">–</div><div class="l">Agents active today</div></div>
+        <h2>Filters</h2>
+        <div class="row">
+          <div><label>From date</label><input type="date" id="dashFrom" onchange="loadDashboard()" /></div>
+          <div><label>To date</label><input type="date" id="dashTo" onchange="loadDashboard()" /></div>
         </div>
-        <h3>By agent today</h3>
+        <label>Chit</label>
+        <select id="dashChitFilter" onchange="loadDashboard()"><option value="">All chits</option></select>
+      </div>
+      <div class="card">
+        <h2>Collected in this period</h2>
+        <div class="stat-grid">
+          <div class="stat"><div class="n" id="dashToday">–</div><div class="l">Collected (₹)</div></div>
+          <div class="stat"><div class="n" id="dashAgentCount">–</div><div class="l">Agents active in period</div></div>
+        </div>
+        <h3>By agent</h3>
         <table id="dashByAgent"></table>
       </div>
       <div class="card">
-        <h2>Active chits</h2>
+        <h2>Chits — as of end date</h2>
         <table id="dashPerChit">
           <tr><th>Chit</th><th>Collected / Expected</th><th>Defaulters</th></tr>
         </table>
@@ -224,6 +248,22 @@
       <div id="chitDetail" class="card hidden"></div>
     </div>
 
+    <!-- Draw -->
+    <div id="tab-draw" class="admin-tab hidden">
+      <div class="card">
+        <h2>Run a draw</h2>
+        <label>Chit</label>
+        <select id="drawChitSelect" onchange="onDrawChitChange()"><option value="">Select a chit…</option></select>
+        <div id="drawInfo"></div>
+        <div class="wheel-wrap">
+          <div class="wheel-pointer"></div>
+          <canvas id="drawWheel" width="280" height="280"></canvas>
+        </div>
+        <button class="primary" id="spinBtn" onclick="doSpin()" disabled>Spin</button>
+        <div id="drawMsg"></div>
+      </div>
+    </div>
+
     <!-- Members -->
     <div id="tab-members" class="admin-tab hidden">
       <div class="card">
@@ -290,10 +330,10 @@
         <input id="setAppTitle" placeholder="e.g. Chitty Kampany" />
         <label>Colour theme</label>
         <div class="subnav" id="themeSubnav">
-          <button type="button" class="secondary" data-theme="classic" onclick="selectTheme('classic')">Classic</button>
-          <button type="button" class="secondary" data-theme="ocean" onclick="selectTheme('ocean')">Ocean</button>
-          <button type="button" class="secondary" data-theme="sunrise" onclick="selectTheme('sunrise')">Sunrise</button>
-          <button type="button" class="secondary" data-theme="forest" onclick="selectTheme('forest')">Forest</button>
+          <button type="button" class="secondary theme-swatch" data-theme="classic" onclick="selectTheme('classic')">Classic</button>
+          <button type="button" class="secondary theme-swatch" data-theme="ocean" onclick="selectTheme('ocean')">Ocean</button>
+          <button type="button" class="secondary theme-swatch" data-theme="sunrise" onclick="selectTheme('sunrise')">Sunrise</button>
+          <button type="button" class="secondary theme-swatch" data-theme="forest" onclick="selectTheme('forest')">Forest</button>
         </div>
         <button class="primary" onclick="submitBranding()">Save branding</button>
         <div id="brandingMsg"></div>
@@ -390,6 +430,7 @@
     if (opts.warningHtml) { warnEl.innerHTML = opts.warningHtml; warnEl.classList.remove('hidden'); }
     else { warnEl.innerHTML = ''; warnEl.classList.add('hidden'); }
     document.getElementById('modalCancelBtn').classList.toggle('hidden', opts.showCancel === false);
+    document.getElementById('modalCancelBtn').textContent = opts.cancelText || 'Cancel';
     document.getElementById('modalOkBtn').textContent = opts.okText || 'OK';
     document.getElementById('modalOverlay').classList.remove('hidden');
     return new Promise((resolve) => { modalResolve = resolve; });
@@ -454,6 +495,7 @@
     document.querySelectorAll('#adminMainSubnav button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     if (name === 'dashboard') loadDashboard();
     if (name === 'chits') loadChitList();
+    if (name === 'draw') loadDrawTab();
     if (name === 'members') loadMembersList();
     if (name === 'users') loadUsers();
     if (name === 'holidays') loadHolidays();
@@ -510,18 +552,33 @@
   }
 
   // ---------------- Dashboard ----------------
+  async function loadDashboardChitFilterOptions() {
+    const sel = document.getElementById('dashChitFilter');
+    const prevValue = sel.value;
+    const chits = await api('listAllChits');
+    sel.innerHTML = '<option value="">All chits</option>' +
+      chits.map(c => `<option value="${c.ChitID}">${c.Name} (${c.Status})</option>`).join('');
+    sel.value = prevValue; // keep the current pick if it's still in the list
+  }
+
   async function loadDashboard() {
     document.getElementById('dashboardMsg').innerHTML = '';
+    const fromEl = document.getElementById('dashFrom');
+    const toEl = document.getElementById('dashTo');
+    if (!fromEl.value) fromEl.value = toDateInputValue_(new Date());
+    if (!toEl.value) toEl.value = toDateInputValue_(new Date());
     try {
-      const d = await api('getDashboardSummary');
-      document.getElementById('dashToday').textContent = d.todayTotal;
+      await loadDashboardChitFilterOptions();
+      const chitId = document.getElementById('dashChitFilter').value;
+      const d = await api('getDashboardSummary', fromEl.value, toEl.value, chitId || null);
+      document.getElementById('dashToday').textContent = d.periodTotal;
       document.getElementById('dashAgentCount').textContent = d.byAgent.length;
       document.getElementById('dashByAgent').innerHTML =
         '<tr><th>Agent</th><th>Collected (₹)</th></tr>' +
         d.byAgent.map(a => `<tr><td>${a.email}</td><td>${a.amount}</td></tr>`).join('');
       document.getElementById('dashPerChit').innerHTML =
         '<tr><th>Chit</th><th>Collected / Expected</th><th>Defaulters</th></tr>' +
-        d.perChit.map(c => `<tr><td>${c.name}</td><td>₹${c.collectedToDate} / ₹${c.expectedToDate}</td><td>${c.defaulterCount}</td></tr>`).join('');
+        d.perChit.map(c => `<tr><td>${c.name} <span class="pill">${c.status}</span></td><td>₹${c.collectedToDate} / ₹${c.expectedToDate}</td><td>${c.defaulterCount}</td></tr>`).join('');
     } catch (e) {
       showMsg('dashboardMsg', 'Could not load the dashboard: ' + (e.message || String(e)), false);
     }
@@ -756,10 +813,8 @@
         <div id="lateJoinMsg"></div>
 
         <h3>Next draw</h3>
-        <p style="font-size:13px">Pool if drawn now: ₹${pool.pool} · Commission: ₹${pool.commission} · Payout: ₹${pool.netPayout}</p>
-        <select id="drawWinnerSelect">${eligible.map(m => `<option value="${m.memberId}">${m.name}</option>`).join('') || '<option disabled>No eligible members left</option>'}</select>
-        <button class="primary" onclick="doRecordDraw('${chitId}')">Record draw winner</button>
-        <div id="drawMsg"></div>`;
+        <p style="font-size:13px">Pool if drawn now: ₹${pool.pool} · Commission: ₹${pool.commission} · Payout: ₹${pool.netPayout} · ${eligible.length} member(s) eligible</p>
+        ${eligible.length ? `<button class="primary" onclick="goToDrawPage('${chitId}')">Run the draw</button>` : '<p style="font-size:13px;color:var(--ink-soft)">No eligible members left.</p>'}`;
     }
 
     html += `<h3>Ledger</h3><div id="ledgerTable"><table><tr><th>Member</th><th>Status</th><th>Paid</th><th>Arrears</th></tr></table></div>`;
@@ -854,21 +909,157 @@
     } catch (e) { await infoDialog('Could not enroll', e.message || String(e)); }
   }
 
-  async function doRecordDraw(chitId) {
-    const sel = document.getElementById('drawWinnerSelect');
-    const memberId = sel.value;
-    if (!memberId) { showMsg('drawMsg', 'No eligible member selected.', false); return; }
-    const name = sel.selectedOptions.length ? sel.selectedOptions[0].textContent : '';
-    const pool = await api('previewNextRoundPool', chitId);
-    const ok = await confirmDialog('Record this draw winner?', `${name} wins this round. Payout: ₹${pool.netPayout}. This can't be undone from the app.`);
-    if (!ok) return;
+  // ---------------- Draw (spin wheel) ----------------
+  // The winner is decided server-side by spinDraw() before the wheel ever
+  // starts turning — the animation here just reveals that already-decided
+  // outcome. This keeps the random pick out of the browser (and out of
+  // anyone's ability to inspect or replay it), and every spin — kept or
+  // redrawn — is logged in the DrawAttempts sheet by the server regardless
+  // of what the client does next.
+  let drawChitId = '';
+  let drawEligible = [];
+  let pendingSpinToken = '';
+  let currentWheelRotation = 0;
+  let preselectDrawChitId = '';
+  const WHEEL_COLORS = ['#16324f', '#0b5394', '#b45309', '#1f5138', '#7c3aed', '#be123c', '#0f766e', '#a16207', '#4338ca', '#c2410c'];
+
+  function goToDrawPage(chitId) {
+    preselectDrawChitId = chitId;
+    showAdminTab('draw');
+  }
+
+  async function loadDrawTab() {
+    const sel = document.getElementById('drawChitSelect');
+    const chits = await api('listAllChits');
+    const active = chits.filter(c => c.Status === 'ACTIVE');
+    sel.innerHTML = '<option value="">Select a chit…</option>' + active.map(c => `<option value="${c.ChitID}">${c.Name}</option>`).join('');
+    if (preselectDrawChitId && active.some(c => c.ChitID === preselectDrawChitId)) sel.value = preselectDrawChitId;
+    preselectDrawChitId = '';
+    await onDrawChitChange();
+  }
+
+  async function onDrawChitChange() {
+    drawChitId = document.getElementById('drawChitSelect').value;
+    document.getElementById('drawMsg').innerHTML = '';
+    document.getElementById('drawInfo').innerHTML = '';
+    currentWheelRotation = 0;
+    if (!drawChitId) { drawEligible = []; drawWheel([], 0); document.getElementById('spinBtn').disabled = true; return; }
     try {
-      const result = await api('recordDrawWinner', chitId, memberId);
-      let html = `Round ${result.roundNumber} recorded. Payout: ₹${result.netPayout}.`;
-      if (result.whatsAppLink) html += ` <a class="wa-link" target="_blank" href="${result.whatsAppLink}">Send WhatsApp result</a>`;
-      await infoDialog('Draw recorded', html);
-      openChitDetail(chitId);
-    } catch (e) { await infoDialog('Could not record draw', e.message || String(e)); }
+      const eligible = await api('getEligibleDrawMembers', drawChitId);
+      const pool = await api('previewNextRoundPool', drawChitId);
+      drawEligible = eligible;
+      document.getElementById('drawInfo').innerHTML = `<p style="font-size:13px">Pool if drawn now: ₹${pool.pool} · Commission: ₹${pool.commission} · Payout: ₹${pool.netPayout} · ${eligible.length} member(s) eligible</p>`;
+      document.getElementById('spinBtn').disabled = eligible.length === 0;
+      drawWheel(eligible, 0);
+    } catch (e) {
+      showMsg('drawMsg', e.message || String(e), false);
+    }
+  }
+
+  function drawWheel(eligible, rotationDeg) {
+    const canvas = document.getElementById('drawWheel');
+    const ctx = canvas.getContext('2d');
+    const size = canvas.width;
+    const cx = size / 2, cy = size / 2, r = size / 2 - 4;
+    ctx.clearRect(0, 0, size, size);
+    const n = eligible.length;
+    if (!n) {
+      ctx.fillStyle = '#eef2f6';
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+      ctx.fill();
+      return;
+    }
+    const sliceAngle = (2 * Math.PI) / n;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate((rotationDeg || 0) * Math.PI / 180);
+    for (let i = 0; i < n; i++) {
+      const start = i * sliceAngle;
+      const end = start + sliceAngle;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, start, end);
+      ctx.closePath();
+      ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
+      ctx.fill();
+      ctx.save();
+      ctx.rotate(start + sliceAngle / 2);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px sans-serif';
+      const label = (eligible[i].name || '').length > 14 ? eligible[i].name.slice(0, 13) + '…' : (eligible[i].name || '');
+      ctx.fillText(label, r - 8, 4);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function animateWheelTo(targetDeg) {
+    return new Promise((resolve) => {
+      const startDeg = currentWheelRotation;
+      const delta = targetDeg - startDeg;
+      const duration = 3500;
+      let start = null;
+      function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+      function frame(ts) {
+        if (start === null) start = ts;
+        const elapsed = ts - start;
+        const t = Math.min(1, elapsed / duration);
+        drawWheel(drawEligible, startDeg + delta * easeOutCubic(t));
+        if (t < 1) { requestAnimationFrame(frame); }
+        else { currentWheelRotation = targetDeg; resolve(); }
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  async function doSpin() {
+    if (!drawChitId) { showMsg('drawMsg', 'Pick a chit first.', false); return; }
+    document.getElementById('spinBtn').disabled = true;
+    document.getElementById('drawMsg').innerHTML = '';
+    try {
+      const result = await api('spinDraw', drawChitId);
+      drawEligible = result.eligible;
+      pendingSpinToken = result.token;
+      const n = drawEligible.length;
+      const sliceDeg = 360 / n;
+      const targetSliceCenter = result.winnerIndex * sliceDeg + sliceDeg / 2;
+      // Land the winner's slice under the pointer (top, 270deg in our 0=east
+      // convention), plus a few full spins so it visibly turns rather than
+      // just snapping — always spinning forward from wherever it last stopped.
+      const currentMod = ((currentWheelRotation % 360) + 360) % 360;
+      const delta = (((270 - targetSliceCenter) - currentMod) % 360 + 360) % 360;
+      const finalRotation = currentWheelRotation + 5 * 360 + delta;
+      await animateWheelTo(finalRotation);
+
+      const winner = drawEligible[result.winnerIndex];
+      const wantsRecord = await openModal({
+        title: 'We have a winner',
+        bodyHtml: `<strong>${winner.name}</strong> won this round.`,
+        showCancel: true,
+        okText: 'Record winner',
+        cancelText: 'ReDraw'
+      });
+
+      if (wantsRecord) {
+        const confirmResult = await api('confirmSpinWinner', drawChitId, pendingSpinToken);
+        pendingSpinToken = '';
+        let html = `${confirmResult.memberName} recorded as round ${confirmResult.roundNumber} winner. Payout: ₹${confirmResult.netPayout}.`;
+        if (confirmResult.whatsAppLink) html += ` <a class="wa-link" target="_blank" href="${confirmResult.whatsAppLink}">Send WhatsApp result</a>`;
+        await infoDialog('Draw recorded', html);
+        document.getElementById('spinBtn').disabled = false;
+        onDrawChitChange();
+      } else {
+        await api('discardSpin', drawChitId, pendingSpinToken);
+        pendingSpinToken = '';
+        document.getElementById('spinBtn').disabled = false;
+        doSpin();
+      }
+    } catch (e) {
+      showMsg('drawMsg', e.message || String(e), false);
+      document.getElementById('spinBtn').disabled = false;
+    }
   }
 
   // ---------------- Members ----------------
@@ -1005,7 +1196,7 @@
 
   function selectTheme(theme) {
     selectedTheme = theme;
-    document.querySelectorAll('#themeSubnav button[data-theme]').forEach(b => b.classList.toggle('active', b.dataset.theme === theme));
+    document.querySelectorAll('#themeSubnav button[data-theme]').forEach(b => b.classList.toggle('selected', b.dataset.theme === theme));
   }
 
   async function loadSettings() {

@@ -14,7 +14,8 @@ const SHEETS = {
   ENROLLMENTS: 'Enrollments',
   COLLECTIONS: 'Collections',
   DRAWS: 'Draws',
-  HOLIDAYS: 'Holidays'
+  HOLIDAYS: 'Holidays',
+  DRAW_ATTEMPTS: 'DrawAttempts'
 };
 
 // Column headers per sheet, in the exact order they appear in row 1.
@@ -51,7 +52,14 @@ const COLUMNS = {
     'DrawID', 'ChitID', 'RoundNumber', 'DrawDate', 'WinnerMemberID',
     'PoolAmount', 'CommissionAmount', 'NetPayout', 'RecordedByEmail', 'Timestamp'
   ],
-  Holidays: ['Date', 'Description']
+  Holidays: ['Date', 'Description'],
+  // Every wheel spin gets a row here — whether it's ultimately recorded as
+  // the real winner or discarded via ReDraw — so there's a durable record of
+  // the actual draw history, not just whatever the admin chose to keep. Not
+  // surfaced anywhere prominent in the UI; it exists for the rare "how many
+  // times did you redraw before I won?" question. See spinDraw_/confirmSpinWinner
+  // /discardSpin in Code.gs.
+  DrawAttempts: ['AttemptID', 'ChitID', 'MemberID', 'Timestamp', 'Outcome']
 };
 
 // Enumerated values used across the app. Keeping them as constants avoids
@@ -94,3 +102,5 @@ const COMMISSION_TYPE = {
 };
 
 const MODE = { CASH: 'CASH', UPI: 'UPI' };
+
+const DRAW_ATTEMPT_STATUS = { PENDING: 'PENDING', RECORDED: 'RECORDED', REDRAWN: 'REDRAWN' };

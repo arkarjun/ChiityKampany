@@ -122,19 +122,24 @@ function computeCatchupAmountDue_(chit, joinDate) {
 function getMemberArrears_(chit, enrollment, asOfDate) {
   const effectiveStart = enrollment.JoinDate > chit.StartDate ? enrollment.JoinDate : chit.StartDate;
   const ticksDue = generateTicks_(effectiveStart, chit.FrequencyType, null, asOfDate, chit.CustomDays).length;
+  // Bounded by asOfDate: when this is called with a past date (the dashboard's
+  // date-range filter), a payment logged AFTER asOfDate must not count toward
+  // "already paid as of that date" — otherwise a later payment would silently
+  // erase a past arrears figure that was real at the time.
+  const asOfStr = formatDate_(asOfDate);
   const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) {
     return c.ChitID === chit.ChitID && c.MemberID === enrollment.MemberID &&
-      c.EntryType === ENTRY_TYPE.INSTALLMENT && !c.Deleted;
+      c.EntryType === ENTRY_TYPE.INSTALLMENT && !c.Deleted && formatDate_(c.Date) <= asOfStr;
   });
   const paidCount = collections.length;
   return Math.max(0, ticksDue - paidCount);
 }
 
-/** All members currently in default (arrears > 0) for one chit. */
-function getDefaultersForChit_(chitId) {
+/** All members in default (arrears > 0) for one chit, as of a given date (defaults to today). */
+function getDefaultersForChit_(chitId, asOfDate) {
   const chit = getChitById_(chitId);
   if (!chit) return [];
-  const today = new Date();
+  const today = asOfDate || new Date();
   const members = readAll_(SHEETS.MEMBERS);
   return getActiveEnrollments_(chitId).map(function (e) {
     const arrears = getMemberArrears_(chit, e, today);

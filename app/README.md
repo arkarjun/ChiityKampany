@@ -26,9 +26,15 @@ File paste order doesn't matter — Apps Script loads them all into one shared s
 
 ## 3. Run setup once
 
-In the toolbar, pick `setupSheets` from the function dropdown and click **Run**. The first time, Google will show an "unverified app" warning — this is expected for a script you just wrote yourself; click **Advanced → Go to (your project name) (unsafe) → Allow**. This creates all eight tabs with headers and dropdowns, and registers your own Google account as the first admin.
+In the toolbar, pick `setupSheets` from the function dropdown and click **Run**. The first time, Google will show an "unverified app" warning — this is expected for a script you just wrote yourself; click **Advanced → Go to (your project name) (unsafe) → Allow**. This creates all nine tabs with headers and dropdowns, and registers your own Google account as the first admin.
 
 Open the **Config** tab and set the `CommitteeName` value to your committee's actual name.
+
+### Optional: load the demo dataset
+
+`demo-data/ChittyKampany-DemoData.xlsx` / `.ods` (in this repo) is a realistic, fully fictional dataset for trying the app out before wiring up your own committee: 25 members, 7 chits covering every frequency type (one extra Daily chit beyond the six in the brief) — 2 still Enrolling, 1 Closed with a complete collection and draw history, 4 Active and partway through — plus matching Enrollments, Collections, and Draws rows. `DrawAttempts` is included but left empty (it's an audit log the app fills in as spins happen, not seed data).
+
+To load it: open each tab in the demo file, select all, copy, and paste over the matching tab in your Sheet (starting from row 2, under the header setup already created). Do this on a test copy of the Sheet, not your live committee's — it's for exploring the app's screens and reports, not something to merge with real data.
 
 ## 4. Deploy as a web app
 

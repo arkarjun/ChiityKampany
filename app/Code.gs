@@ -342,14 +342,85 @@ function previewNextRoundPool(chitId) {
   return { pool: pool, commission: commission, netPayout: pool - commission };
 }
 
-function recordDrawWinner(chitId, memberId) {
-  const user = requireRole_([ROLE.ADMIN]);
+/**
+ * Draws go through spin -> confirm/redraw, not a direct "pick anyone
+ * eligible and record them" call — see spinDraw/confirmSpinWinner/
+ * discardSpin below. Nothing calls a bare "record this member as winner"
+ * anymore: the whole point of the spin flow is that the winner is picked by
+ * the server, not chosen freehand, so that path was removed rather than
+ * left reachable alongside it.
+ */
+
+/**
+ * Starts a draw: picks a random winner from the chit's real eligible list
+ * (server-side, so the outcome can't be seen or influenced from the
+ * browser), logs the attempt, and stashes it as this chit's pending draw.
+ * Returns the full eligible list plus which index won, so the client can
+ * draw its wheel from the exact list the server actually used and animate
+ * to the real outcome rather than picking its own.
+ */
+function spinDraw(chitId) {
+  requireRole_([ROLE.ADMIN]);
   const chit = getChitById_(chitId);
-  const result = recordDraw_(chitId, memberId, user.Email);
-  const member = listMembersById_()[memberId];
+  if (!chit) throw new Error('Chit not found.');
+  if (chit.Status !== CHIT_STATUS.ACTIVE) throw new Error('This chit is not active.');
+
+  const eligible = getEligibleForDraw_(chitId);
+  if (!eligible.length) throw new Error('No eligible members left to draw.');
+  const membersById = listMembersById_();
+  const eligibleList = eligible.map(function (e) {
+    const m = membersById[e.MemberID] || {};
+    return { memberId: e.MemberID, name: m.Name };
+  });
+
+  const winnerIndex = Math.floor(Math.random() * eligibleList.length);
+  const winner = eligibleList[winnerIndex];
+  const token = newId_('SPIN');
+
+  appendRow_(SHEETS.DRAW_ATTEMPTS, {
+    AttemptID: token,
+    ChitID: chitId,
+    MemberID: winner.memberId,
+    Timestamp: new Date(),
+    Outcome: DRAW_ATTEMPT_STATUS.PENDING
+  });
+  PropertiesService.getDocumentProperties().setProperty('pendingDraw_' + chitId,
+    JSON.stringify({ memberId: winner.memberId, token: token }));
+
+  return { eligible: eligibleList, winnerIndex: winnerIndex, winnerMemberId: winner.memberId, winnerName: winner.name, token: token };
+}
+
+/** Admin accepted the spun winner: records the real draw and closes out the pending attempt. Rejects if the token doesn't match the last spin — e.g. a stale tab, or the chit was spun again elsewhere first. */
+function confirmSpinWinner(chitId, token) {
+  const user = requireRole_([ROLE.ADMIN]);
+  const raw = PropertiesService.getDocumentProperties().getProperty('pendingDraw_' + chitId);
+  if (!raw) throw new Error('No pending draw found for this chit — spin again.');
+  const pending = JSON.parse(raw);
+  if (pending.token !== token) throw new Error('This draw result is stale — spin again.');
+
+  const chit = getChitById_(chitId);
+  const result = recordDraw_(chitId, pending.memberId, user.Email);
+  updateRow_(SHEETS.DRAW_ATTEMPTS, 'AttemptID', token, { Outcome: DRAW_ATTEMPT_STATUS.RECORDED });
+  PropertiesService.getDocumentProperties().deleteProperty('pendingDraw_' + chitId);
+
+  const member = listMembersById_()[pending.memberId];
   sendDrawResultEmail_(member, chit, result);
   const waLink = buildDrawResultWhatsAppLink_(member, chit, result);
-  return Object.assign({ whatsAppLink: waLink }, result);
+  return Object.assign({ whatsAppLink: waLink, memberName: member.Name }, result);
+}
+
+/** Admin rejected the spun winner: marks the attempt REDRAWN (kept in DrawAttempts for the audit trail) and clears the pending state so a fresh spin can start. */
+function discardSpin(chitId, token) {
+  requireRole_([ROLE.ADMIN]);
+  const raw = PropertiesService.getDocumentProperties().getProperty('pendingDraw_' + chitId);
+  if (raw) {
+    const pending = JSON.parse(raw);
+    if (pending.token === token) {
+      updateRow_(SHEETS.DRAW_ATTEMPTS, 'AttemptID', token, { Outcome: DRAW_ATTEMPT_STATUS.REDRAWN });
+      PropertiesService.getDocumentProperties().deleteProperty('pendingDraw_' + chitId);
+    }
+  }
+  return { ok: true };
 }
 
 // ---------- Admin: ledgers, defaulters, dashboard ----------
@@ -420,26 +491,49 @@ function deleteCollection(collectionId) {
   return { ok: true };
 }
 
-function getDashboardSummary() {
+/**
+ * fromDateStr/toDateStr: the selected date range (both default to today if
+ * omitted). chitId: a specific chit, or falsy for all chits.
+ *
+ * The "collected in period" / "by agent" figures are scoped strictly to
+ * payments dated inside [from, to] — a period report ("how much came in
+ * during this window"). The per-chit table is a point-in-time snapshot as of
+ * the END of the range ("as of this date, what's expected vs collected") —
+ * a different question, which is why it uses the whole history up to `to`
+ * rather than just what fell inside the range. Both readings share the same
+ * date range control since asking for two separate pickers would be more
+ * confusing than useful here.
+ */
+function getDashboardSummary(fromDateStr, toDateStr, chitId) {
   requireRole_([ROLE.ADMIN]);
-  const chits = readAll_(SHEETS.CHITS).filter(function (c) { return c.Status === CHIT_STATUS.ACTIVE && !c.Deleted; });
-  const allCollections = readAll_(SHEETS.COLLECTIONS).filter(function (c) { return !c.Deleted; });
-  const todayStr = formatDate_(new Date());
+  const fromDate = fromDateStr ? new Date(fromDateStr) : new Date();
+  const toDate = toDateStr ? new Date(toDateStr) : new Date();
+  const fromStr = formatDate_(fromDate);
+  const toStr = formatDate_(toDate);
 
-  const todaysCollections = allCollections.filter(function (c) { return formatDate_(c.Date) === todayStr; });
-  const todayTotal = todaysCollections.reduce(function (s, c) { return s + Number(c.Amount); }, 0);
+  let chits = readAll_(SHEETS.CHITS).filter(function (c) { return !c.Deleted; });
+  if (chitId) chits = chits.filter(function (c) { return c.ChitID === chitId; });
+  const chitIdSet = new Set(chits.map(function (c) { return c.ChitID; }));
+
+  const allCollections = readAll_(SHEETS.COLLECTIONS).filter(function (c) { return !c.Deleted && chitIdSet.has(c.ChitID); });
+  const periodCollections = allCollections.filter(function (c) {
+    const d = formatDate_(c.Date);
+    return d >= fromStr && d <= toStr;
+  });
+  const periodTotal = periodCollections.reduce(function (s, c) { return s + Number(c.Amount); }, 0);
 
   const byAgent = {};
-  todaysCollections.forEach(function (c) {
+  periodCollections.forEach(function (c) {
     byAgent[c.AgentEmail] = (byAgent[c.AgentEmail] || 0) + Number(c.Amount);
   });
 
   const perChit = chits.map(function (chit) {
-    const summary = getChitCollectionSummary_(chit);
-    const defaulters = getDefaultersForChit_(chit.ChitID);
+    const summary = getChitCollectionSummary_(chit, toDate);
+    const defaulters = getDefaultersForChit_(chit.ChitID, toDate);
     return {
       chitId: chit.ChitID,
       name: chit.Name,
+      status: chit.Status,
       expectedToDate: summary.expected,
       collectedToDate: summary.collected,
       defaulterCount: defaulters.length
@@ -447,14 +541,17 @@ function getDashboardSummary() {
   });
 
   return {
-    todayTotal: todayTotal,
+    fromDate: fromStr,
+    toDate: toStr,
+    periodTotal: periodTotal,
     byAgent: Object.keys(byAgent).map(function (email) { return { email: email, amount: byAgent[email] }; }),
     perChit: perChit
   };
 }
 
-function getChitCollectionSummary_(chit) {
-  const today = new Date();
+/** Expected-vs-collected as of a given date (defaults to today) — "as of" bounds both sides, so a payment logged after asOfDate doesn't inflate a past snapshot. */
+function getChitCollectionSummary_(chit, asOfDate) {
+  const today = asOfDate || new Date();
   const enrollments = getActiveEnrollments_(chit.ChitID);
   let expected = 0;
   enrollments.forEach(function (e) {
@@ -462,7 +559,10 @@ function getChitCollectionSummary_(chit) {
     const ticks = generateTicks_(effectiveStart, chit.FrequencyType, null, today, chit.CustomDays).length;
     expected += ticks * Number(chit.InstallmentAmount);
   });
-  const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) { return c.ChitID === chit.ChitID && !c.Deleted; });
+  const todayStr = formatDate_(today);
+  const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) {
+    return c.ChitID === chit.ChitID && !c.Deleted && formatDate_(c.Date) <= todayStr;
+  });
   const collected = collections.reduce(function (s, c) { return s + Number(c.Amount); }, 0);
   return { expected: expected, collected: collected };
 }
