@@ -56,12 +56,16 @@ function objectToRow_(cols, obj) {
 }
 
 /**
- * Appends one row. Wrapped in a document lock so two simultaneous agent
- * submissions can't interleave and corrupt each other's row.
+ * Appends one row. Wrapped in a script lock so two simultaneous agent
+ * submissions can't interleave and corrupt each other's row. A script lock
+ * (rather than a document lock) is used because it works for both a
+ * standalone script and a container-bound one — getDocumentLock() only
+ * works when the script is bound to the document it's locking, which a
+ * standalone project never is, even after setSheetId_().
  * Returns the row number the data landed on.
  */
 function appendRow_(sheetName, obj) {
-  const lock = LockService.getDocumentLock();
+  const lock = LockService.getScriptLock();
   lock.waitLock(30000); // up to 30s; a chit committee's write volume is tiny, this is generous
   try {
     const sheet = getSheet_(sheetName);
@@ -76,10 +80,11 @@ function appendRow_(sheetName, obj) {
 
 /**
  * Updates specific fields on an existing row, found by matching idColumn/idValue.
- * Also lock-protected. Returns true if a row was found and updated.
+ * Also lock-protected (script lock — see appendRow_ for why). Returns true
+ * if a row was found and updated.
  */
 function updateRow_(sheetName, idColumn, idValue, patch) {
-  const lock = LockService.getDocumentLock();
+  const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     const sheet = getSheet_(sheetName);
@@ -129,7 +134,7 @@ function columnLetter_(index0) {
  * formula rather than a stored value — see Constants.gs for why.
  */
 function setCellFormula_(sheetName, rowNumber, columnName, formula) {
-  const lock = LockService.getDocumentLock();
+  const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     const sheet = getSheet_(sheetName);

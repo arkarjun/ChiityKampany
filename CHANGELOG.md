@@ -3,6 +3,10 @@
 All notable changes to Chitty Kampany are recorded here. Versions follow `<major>.<minor>.<patch>`:
 major for changes that need a setup/deployment change beyond just replacing files, minor for new features, patch for fixes only.
 
+## v1.0.1 — fix: setup fails on a standalone script project
+
+- **Fixed `setupSheets()` (and every write) throwing `Cannot read properties of null (reading 'waitLock')` on a standalone Apps Script project.** The write-locking in `DataAccess.gs` used `LockService.getDocumentLock()`, which only works for a script bound to the document it's locking — a standalone project (the setup guide's recommended path, for keeping the receipt-verification secret private from agents) is never bound, even after `setSheetId_()`, so it returned `null` and broke `appendRow_`, `updateRow_`, and `setCellFormula_`. Switched to `LockService.getScriptLock()`, which works the same way for both a standalone and a container-bound project. No setup or deployment change needed — just replace `DataAccess.gs` (and `Constants.gs` for the version bump) and redeploy.
+
 ## v1.0.0 — first stable release
 
 The app's feature set is now considered complete for a v1 chit-fund committee: chit lifecycle (Enrolling → Active → Closed) across all six brief-specified frequencies plus Daily, member and collection management with soft-delete, provably-fair spin-wheel draws with a full audit trail, a date-range dashboard, configurable branding and message templates, and a cryptographically verifiable receipt system. Also the first version to carry a number at all — see "Updating an existing deployment" in `README.md` if you're coming from an earlier, unversioned checkout.
