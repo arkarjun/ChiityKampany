@@ -52,6 +52,8 @@ Open the **Config** tab and set the `CommitteeName` value to your committee's ac
 
 To load it: open each tab in the demo file, select all, copy, and paste over the matching tab in your Sheet (starting from row 2, under the header setup already created). Do this on a test copy of the Sheet, not your live committee's — it's for exploring the app's screens and reports, not something to merge with real data.
 
+**Receipt verification will not work on the demo dataset.** A row's `Seal` is only ever computed by `logPayment()`/`logCatchupPayment()` at the moment a payment is actually logged through the app, using the private secret generated for *your* script in step 4 — a secret unique to every installation. The demo file's Collections rows are pasted straight into the sheet rather than created that way, so their `Seal` column is blank, and there's no way to pre-fill it that would work across every installation (each has a different secret). `Admin → Verify` and the public Verify link will correctly show "not verified" for every demo receipt code — that's expected, not a bug. To see a genuine "verified" result, log a real payment through the app yourself (demo data or not) and check that one instead.
+
 ## 5. Deploy as a web app — two deployments
 
 Chitty Kampany uses **two separate deployments of the same project**: the main app (agents and admins, identity-checked) and a small public receipt-checker (no login, for members). They serve different purposes and need different settings, so create both.
@@ -84,7 +86,7 @@ Under **Admin → Settings**, an admin can set the app's title and pick from fou
 
 Every payment receipt (WhatsApp or email) includes a Ref code — the CollectionID. Give members Deployment B's link (with `?page=verify`) and they can paste that code in themselves, any time, with no login, and get back a plain "genuine" or "not verified" — no other details are shown. Admins can check the same code from inside the app too, under **Admin → Verify**, for a quick answer without leaving the app.
 
-This isn't just "does a matching row exist" — a hand-typed row in the Collections sheet can look just as plausible as a real one, since agents need direct edit access to that sheet for the app to work at all. Every row `logPayment()`/`logCatchupPayment()` actually creates gets a hidden `Seal` — a value computed from that row's own details plus the private secret from step 4, which never leaves this script's own settings. `verifyReceipt()` recomputes what the seal *should* be and compares it to what's stored; a hand-typed row, however convincing its CollectionID looks, won't have a matching one. See `Receipts.gs` for the full reasoning.
+This isn't just "does a matching row exist" — a hand-typed row in the Collections sheet can look just as plausible as a real one, since agents need direct edit access to that sheet for the app to work at all. Every row `logPayment()`/`logCatchupPayment()` actually creates gets a hidden `Seal` — a value computed from that row's own details plus the private secret from step 4, which never leaves this script's own settings. `verifyReceipt()` recomputes what the seal *should* be and compares it to what's stored; a hand-typed row, however convincing its CollectionID looks, won't have a matching one. See `Receipts.gs` for the full reasoning. (This also means the demo dataset's receipts never verify as genuine — see "Optional: load the demo dataset" above.)
 
 ## Known limitation: deleted catch-up payments
 
