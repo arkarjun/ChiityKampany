@@ -638,6 +638,70 @@ function getChitCollectionSummary_(chit, asOfDate, preloaded) {
   return { expected: expected, collected: collected };
 }
 
+// ---------- Agent dashboard ("My Day") ----------
+
+/**
+ * One agent's collection summary for a single day: total collected, split
+ * by Cash/UPI, and a chitwise breakdown. Used by the "My Day" tab, which
+ * every agent and admin sees.
+ *
+ * agentEmail: which agent's day to show. An AGENT can only ever see their
+ * OWN day — the client never gets to choose whose data comes back, even
+ * though the UI only exposes a picker to admins; identity for that comes
+ * from the signed-in account via requireRole_(), the same rule as
+ * everywhere else in this file. An ADMIN may pass any active user's email,
+ * or omit it to see their own (admins can log payments too).
+ *
+ * dateStr: a single day (not a range, unlike the Admin Dashboard) —
+ * defaults to today when omitted.
+ *
+ * Includes both INSTALLMENT and CATCHUP entries in every total: "how much
+ * did I collect today" naturally means everything logged, matching how the
+ * Admin Dashboard's own totals already work.
+ *
+ * Chitwise lists every currently ACTIVE chit, including ones this agent
+ * collected nothing for today (shown as ₹0) — there's no agent-to-chit
+ * assignment anywhere in this app (any agent can collect for any active
+ * chit), so "every chit this agent is active on" is read here as "every
+ * chit currently open for collection," not a fixed personal roster.
+ */
+function getAgentDashboardSummary(agentEmail, dateStr) {
+  const user = requireRole_([ROLE.AGENT, ROLE.ADMIN]);
+  const targetEmail = (user.Role === ROLE.AGENT) ? user.Email : (agentEmail || user.Email);
+
+  const targetDate = dateStr ? new Date(dateStr) : new Date();
+  const targetDateStr = formatDate_(targetDate);
+
+  const collections = readAll_(SHEETS.COLLECTIONS).filter(function (c) {
+    return !c.Deleted && String(c.AgentEmail).toLowerCase() === String(targetEmail).toLowerCase() &&
+      formatDate_(c.Date) === targetDateStr;
+  });
+
+  const totalCollected = collections.reduce(function (s, c) { return s + Number(c.Amount); }, 0);
+  const cashTotal = collections.filter(function (c) { return c.Mode === MODE.CASH; })
+    .reduce(function (s, c) { return s + Number(c.Amount); }, 0);
+  const upiTotal = collections.filter(function (c) { return c.Mode === MODE.UPI; })
+    .reduce(function (s, c) { return s + Number(c.Amount); }, 0);
+
+  const byChit = {};
+  collections.forEach(function (c) {
+    byChit[c.ChitID] = (byChit[c.ChitID] || 0) + Number(c.Amount);
+  });
+  const activeChits = readAll_(SHEETS.CHITS).filter(function (c) { return c.Status === CHIT_STATUS.ACTIVE && !c.Deleted; });
+  const chitwise = activeChits.map(function (chit) {
+    return { chitId: chit.ChitID, name: chit.Name, amount: byChit[chit.ChitID] || 0 };
+  }).sort(function (a, b) { return b.amount - a.amount; });
+
+  return {
+    agentEmail: targetEmail,
+    date: targetDateStr,
+    totalCollected: totalCollected,
+    cashTotal: cashTotal,
+    upiTotal: upiTotal,
+    chitwise: chitwise
+  };
+}
+
 // ---------- Admin: users & holidays ----------
 
 function listUsers() {

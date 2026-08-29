@@ -78,6 +78,8 @@ You're already in the **Users** tab as an admin from step 4. Add the rest of you
 
 Open Deployment A's Web app URL on a phone browser and use **Add to Home Screen** (Chrome, Android) so it behaves like an installed app icon. Agents land on **Collect**: pick a chit, pick a member, log the payment. Admins additionally see an **Admin** tab: create and enroll chits, activate them, run draws from **Admin → Draw** (a spin wheel whose winner is actually decided on the server before it spins, so the animation is a reveal, not the source of randomness — every spin is logged either way), handle the rare late-joiner case, and check **Admin → Dashboard**, which takes a date range and an optional chit filter rather than showing only "today."
 
+Every agent and admin also has a **My Day** tab: total collected, split by Cash/UPI, and a chitwise breakdown for one day (Today, Yesterday, or a custom date, defaulting to Today). An agent only ever sees their own day; an admin gets an agent picker so they can check anyone's day for reconciliation.
+
 Add any known festival/bank holidays under **Admin → Holidays** before they matter for a working-days chit — the schedule engine reads that list live.
 
 Under **Admin → Settings**, an admin can set the app's title and pick from four colour themes (Classic, Ocean, Sunrise, Forest) — both apply for everyone on their next page load. The same screen lets you customize the wording of payment-receipt and draw-result messages (WhatsApp and email).

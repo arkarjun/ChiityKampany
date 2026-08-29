@@ -2,7 +2,7 @@
 
 A small, open-source, low-tech tool for digitizing how a chit fund committee runs its daily collections and draws.
 
-Chitty Kampany replaces the paper registers a field agent currently carries with a phone-based collection screen, and gives the committee a live, auditable ledger instead of reconciling notebooks by hand. It runs entirely on Google Sheets and Google Apps Script — no server, no hosting bill, and no IT team required to keep it alive. Current version: **v1.0.3** — see [`CHANGELOG.md`](CHANGELOG.md) for release history.
+Chitty Kampany replaces the paper registers a field agent currently carries with a phone-based collection screen, and gives the committee a live, auditable ledger instead of reconciling notebooks by hand. It runs entirely on Google Sheets and Google Apps Script — no server, no hosting bill, and no IT team required to keep it alive. Current version: **v1.1.0** — see [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Why it's built this way
 
@@ -17,6 +17,8 @@ Every chit is its own configuration rather than a hardcoded formula — installm
 ### Collections
 
 Agents get one deliberately narrow screen: pick a chit, pick a member (searchable, not a long dropdown), enter an amount, log it. A pre-submit check flags an apparent duplicate (same chit, member, and amount already logged today) before it's saved. Late joiners can be enrolled mid-chit with a one-time catch-up payment covering what they missed. Every logged payment automatically sends a receipt — email and a tap-to-send WhatsApp link — carrying a Ref code the member can later check (see Receipt verification, below).
+
+A separate **My Day** tab gives an agent their own totals for a single day — overall, Cash, and UPI, plus a chitwise breakdown across every currently active chit — for Today, Yesterday, or a chosen date. Admins see it too, with a picker to check any active user's day for reconciliation.
 
 ### Draws
 
@@ -55,7 +57,7 @@ The whole app lives in [`app/`](app) — plain Apps Script files and two HTML fi
 
 ## Status
 
-v1.0.3 — the app's feature set is considered complete for a v1 chit-fund committee: chit onboarding and lifecycle across all six frequency types, agent collection with duplicate warnings, provably-fair spin-wheel draws with an audit trail, a date-range dashboard, configurable branding and message templates, verifiable receipts, and role-based access control. See `CHANGELOG.md` for what changed to get here. Not yet handled: broader member self-service beyond checking one receipt, automatic (non-tap-to-send) WhatsApp sending, exportable reports, multi-committee deployments, and a member exiting a chit before winning.
+v1.1.0 — the app's feature set is considered complete for a v1 chit-fund committee: chit onboarding and lifecycle across all six frequency types, agent collection with duplicate warnings, provably-fair spin-wheel draws with an audit trail, a date-range admin dashboard plus a per-day agent dashboard, configurable branding and message templates, verifiable receipts, and role-based access control. See `CHANGELOG.md` for what changed to get here. Not yet handled: broader member self-service beyond checking one receipt, automatic (non-tap-to-send) WhatsApp sending, exportable reports, multi-committee deployments, and a member exiting a chit before winning.
 
 ## Contributing
 

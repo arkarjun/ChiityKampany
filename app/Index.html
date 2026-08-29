@@ -109,6 +109,7 @@
 
 <nav id="mainNav" class="hidden">
   <button id="navCollect" class="active" onclick="showScreen('collect')">Collect</button>
+  <button id="navMyDay" onclick="showScreen('myday')">My Day</button>
   <button id="navAdmin" class="hidden" onclick="showScreen('admin')">Admin</button>
 </nav>
 
@@ -138,6 +139,36 @@
       </div>
       <button class="primary" onclick="submitPayment()">Log payment</button>
       <div id="collectMsg"></div>
+    </div>
+  </div>
+
+  <!-- ===================== MY DAY SCREEN ===================== -->
+  <div id="myDayScreen" class="hidden">
+    <div id="myDayMsg"></div>
+    <div class="card">
+      <h2>My Day</h2>
+      <div id="myDayAgentPickerWrap" class="hidden">
+        <label>Agent</label>
+        <select id="myDayAgent" onchange="refreshMyDay()"></select>
+      </div>
+      <div class="subnav" id="myDayDateTabs">
+        <button class="secondary active" data-preset="today" onclick="myDaySetPreset('today')">Today</button>
+        <button class="secondary" data-preset="yesterday" onclick="myDaySetPreset('yesterday')">Yesterday</button>
+        <button class="secondary" data-preset="custom" onclick="myDaySetPreset('custom')">Custom</button>
+      </div>
+      <div id="myDayCustomDateWrap" class="hidden">
+        <label>Date</label>
+        <input type="date" id="myDayCustomDate" onchange="refreshMyDay()" />
+      </div>
+    </div>
+    <div class="card">
+      <div class="stat-grid">
+        <div class="stat"><div class="n" id="myDayTotal">–</div><div class="l">Total collected (₹)</div></div>
+        <div class="stat"><div class="n" id="myDayCash">–</div><div class="l">Cash (₹)</div></div>
+        <div class="stat"><div class="n" id="myDayUpi">–</div><div class="l">UPI (₹)</div></div>
+      </div>
+      <h3>By chit</h3>
+      <table id="myDayByChit"><tr><th>Chit</th><th>Collected (₹)</th></tr></table>
     </div>
   </div>
 
@@ -497,10 +528,13 @@
   // ---------------- Screen switching ----------------
   function showScreen(name) {
     document.getElementById('collectScreen').classList.toggle('hidden', name !== 'collect');
+    document.getElementById('myDayScreen').classList.toggle('hidden', name !== 'myday');
     document.getElementById('adminScreen').classList.toggle('hidden', name !== 'admin');
     document.getElementById('navCollect').classList.toggle('active', name === 'collect');
+    document.getElementById('navMyDay').classList.toggle('active', name === 'myday');
     document.getElementById('navAdmin').classList.toggle('active', name === 'admin');
     if (name === 'admin') showAdminTab('dashboard');
+    if (name === 'myday') loadMyDay();
   }
 
   function showAdminTab(name) {
@@ -607,6 +641,77 @@
       await infoDialog('Payment logged', html);
     } catch (e) {
       await infoDialog('Could not log payment', e.message || String(e));
+    }
+  }
+
+  // ---------------- My Day (agent dashboard) ----------------
+  let myDayPreset = 'today';
+  let myDayAgentsLoaded = false;
+
+  async function loadMyDay() {
+    document.getElementById('myDayMsg').innerHTML = '';
+    if (CURRENT_USER.role === 'ADMIN') {
+      document.getElementById('myDayAgentPickerWrap').classList.remove('hidden');
+      if (!myDayAgentsLoaded) {
+        try {
+          const users = await api('listUsers');
+          const activeUsers = users.filter(u => u.Active === true).sort((a, b) => a.Name.localeCompare(b.Name));
+          const sel = document.getElementById('myDayAgent');
+          sel.innerHTML = activeUsers.map(u => `<option value="${u.Email}">${u.Name} (${u.Role})</option>`).join('');
+          sel.value = CURRENT_USER.email;
+          myDayAgentsLoaded = true;
+        } catch (e) {
+          showMsg('myDayMsg', 'Could not load the agent list: ' + (e.message || String(e)), false);
+          return;
+        }
+      }
+    } else {
+      document.getElementById('myDayAgentPickerWrap').classList.add('hidden');
+    }
+    await refreshMyDay();
+  }
+
+  /** Switches the Today/Yesterday/Custom pill and reloads, except Custom which waits for a date pick. */
+  function myDaySetPreset(preset) {
+    myDayPreset = preset;
+    document.querySelectorAll('#myDayDateTabs button').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
+    document.getElementById('myDayCustomDateWrap').classList.toggle('hidden', preset !== 'custom');
+    if (preset === 'custom') {
+      const dateEl = document.getElementById('myDayCustomDate');
+      if (!dateEl.value) dateEl.value = toDateInputValue_(new Date());
+      refreshMyDay();
+    } else {
+      refreshMyDay();
+    }
+  }
+
+  function myDayDateStr_() {
+    const today = new Date();
+    if (myDayPreset === 'yesterday') {
+      const d = new Date(today);
+      d.setDate(d.getDate() - 1);
+      return toDateInputValue_(d);
+    }
+    if (myDayPreset === 'custom') {
+      return document.getElementById('myDayCustomDate').value || toDateInputValue_(today);
+    }
+    return toDateInputValue_(today);
+  }
+
+  async function refreshMyDay() {
+    document.getElementById('myDayMsg').innerHTML = '';
+    try {
+      const agentEmail = CURRENT_USER.role === 'ADMIN' ? document.getElementById('myDayAgent').value : null;
+      const dateStr = myDayDateStr_();
+      const d = await api('getAgentDashboardSummary', agentEmail, dateStr);
+      document.getElementById('myDayTotal').textContent = d.totalCollected;
+      document.getElementById('myDayCash').textContent = d.cashTotal;
+      document.getElementById('myDayUpi').textContent = d.upiTotal;
+      document.getElementById('myDayByChit').innerHTML =
+        '<tr><th>Chit</th><th>Collected (₹)</th></tr>' +
+        d.chitwise.map(c => `<tr><td>${c.name}</td><td>${c.amount}</td></tr>`).join('');
+    } catch (e) {
+      showMsg('myDayMsg', 'Could not load My Day: ' + (e.message || String(e)), false);
     }
   }
 

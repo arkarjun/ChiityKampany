@@ -3,6 +3,10 @@
 All notable changes to Chitty Kampany are recorded here. Versions follow `<major>.<minor>.<patch>`:
 major for changes that need a setup/deployment change beyond just replacing files, minor for new features, patch for fixes only.
 
+## v1.1.0 — new: "My Day" agent dashboard
+
+- **New "My Day" tab, visible to every agent and admin.** Shows one day's collection totals (overall, Cash, UPI) plus a chitwise breakdown across every currently Active chit — including ones with nothing collected that day, shown as ₹0. Date picker offers Today / Yesterday / a custom date, defaulting to Today. An agent only ever sees their own day; an admin gets an agent picker (defaulting to themselves) so they can check any active user's day too — enforced server-side in `getAgentDashboardSummary()`, the same "identity comes from the signed-in account, never from what the client sends" rule as everywhere else in this app. Totals include both regular installments and late-joiner catch-up payments, matching how the Admin Dashboard's own totals already work. There's no agent-to-chit assignment anywhere in this app (any agent can collect for any active chit), so "every chit" here means every chit currently open for collection, not a fixed personal roster.
+
 ## v1.0.3 — fix: draw crashes right after spinning
 
 - **Fixed `spinDraw()`/`confirmSpinWinner()`/`discardSpin()` throwing `Cannot read properties of null (reading 'setProperty')` on a standalone Apps Script project.** Same root cause as the v1.0.1 lock fix, different service this time: `PropertiesService.getDocumentProperties()` only works for a script bound to the document it's storing against, and a standalone project never is — so it returned `null` and broke the whole spin-draw flow. Switched to `PropertiesService.getScriptProperties()`, which works the same way for both a standalone and a container-bound project. Just replace `Code.gs` (and `Constants.gs` for the version bump) and redeploy — no setup change needed.
