@@ -113,4 +113,4 @@ const DRAW_ATTEMPT_STATUS = { PENDING: 'PENDING', RECORDED: 'RECORDED', REDRAWN:
 // Bumped by hand on any release worth calling out — shown in the footer and
 // in CHANGELOG.md. Format: <major>.<minor>.<patch> — major for breaking
 // setup/data changes, minor for new features, patch for fixes only.
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';

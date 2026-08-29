@@ -3,6 +3,10 @@
 All notable changes to Chitty Kampany are recorded here. Versions follow `<major>.<minor>.<patch>`:
 major for changes that need a setup/deployment change beyond just replacing files, minor for new features, patch for fixes only.
 
+## v1.0.3 — fix: draw crashes right after spinning
+
+- **Fixed `spinDraw()`/`confirmSpinWinner()`/`discardSpin()` throwing `Cannot read properties of null (reading 'setProperty')` on a standalone Apps Script project.** Same root cause as the v1.0.1 lock fix, different service this time: `PropertiesService.getDocumentProperties()` only works for a script bound to the document it's storing against, and a standalone project never is — so it returned `null` and broke the whole spin-draw flow. Switched to `PropertiesService.getScriptProperties()`, which works the same way for both a standalone and a container-bound project. Just replace `Code.gs` (and `Constants.gs` for the version bump) and redeploy — no setup change needed.
+
 ## v1.0.2 — fix: slow page loads
 
 - **Fixed the Admin Dashboard and a chit's ledger view triggering dozens of redundant full-sheet reads on a single load.** `getMemberArrears_()` re-read the entire Collections sheet from scratch for every active member, and it was called once per member per chit — on the demo dataset (7 chits, 25 members), one dashboard load could trigger 70+ full-sheet reads. `getDashboardSummary()`, `getChitCollectionSummary_()`, `getDefaultersForChit_()`, and `getChitLedger()` now read each sheet once per request and share that data across every chit/member instead of each helper re-reading it independently. Verified the refactored functions return byte-identical results to the originals before and after, in addition to the existing 18-test suite passing unchanged.

@@ -403,6 +403,13 @@ function previewNextRoundPool(chitId) {
  * Returns the full eligible list plus which index won, so the client can
  * draw its wheel from the exact list the server actually used and animate
  * to the real outcome rather than picking its own.
+ *
+ * The pending draw is stashed in Script Properties, not Document Properties
+ * — getDocumentProperties() only works for a script bound to the document
+ * it's storing against, same limitation as getDocumentLock() (see
+ * DataAccess.gs). A standalone project isn't bound to anything, so it
+ * returned null and broke every function here with "Cannot read properties
+ * of null (reading 'setProperty')" right after a spin.
  */
 function spinDraw(chitId) {
   requireRole_([ROLE.ADMIN]);
@@ -429,7 +436,7 @@ function spinDraw(chitId) {
     Timestamp: new Date(),
     Outcome: DRAW_ATTEMPT_STATUS.PENDING
   });
-  PropertiesService.getDocumentProperties().setProperty('pendingDraw_' + chitId,
+  PropertiesService.getScriptProperties().setProperty('pendingDraw_' + chitId,
     JSON.stringify({ memberId: winner.memberId, token: token }));
 
   return { eligible: eligibleList, winnerIndex: winnerIndex, winnerMemberId: winner.memberId, winnerName: winner.name, token: token };
@@ -438,7 +445,7 @@ function spinDraw(chitId) {
 /** Admin accepted the spun winner: records the real draw and closes out the pending attempt. Rejects if the token doesn't match the last spin — e.g. a stale tab, or the chit was spun again elsewhere first. */
 function confirmSpinWinner(chitId, token) {
   const user = requireRole_([ROLE.ADMIN]);
-  const raw = PropertiesService.getDocumentProperties().getProperty('pendingDraw_' + chitId);
+  const raw = PropertiesService.getScriptProperties().getProperty('pendingDraw_' + chitId);
   if (!raw) throw new Error('No pending draw found for this chit — spin again.');
   const pending = JSON.parse(raw);
   if (pending.token !== token) throw new Error('This draw result is stale — spin again.');
@@ -446,7 +453,7 @@ function confirmSpinWinner(chitId, token) {
   const chit = getChitById_(chitId);
   const result = recordDraw_(chitId, pending.memberId, user.Email);
   updateRow_(SHEETS.DRAW_ATTEMPTS, 'AttemptID', token, { Outcome: DRAW_ATTEMPT_STATUS.RECORDED });
-  PropertiesService.getDocumentProperties().deleteProperty('pendingDraw_' + chitId);
+  PropertiesService.getScriptProperties().deleteProperty('pendingDraw_' + chitId);
 
   const member = listMembersById_()[pending.memberId];
   sendDrawResultEmail_(member, chit, result);
@@ -457,12 +464,12 @@ function confirmSpinWinner(chitId, token) {
 /** Admin rejected the spun winner: marks the attempt REDRAWN (kept in DrawAttempts for the audit trail) and clears the pending state so a fresh spin can start. */
 function discardSpin(chitId, token) {
   requireRole_([ROLE.ADMIN]);
-  const raw = PropertiesService.getDocumentProperties().getProperty('pendingDraw_' + chitId);
+  const raw = PropertiesService.getScriptProperties().getProperty('pendingDraw_' + chitId);
   if (raw) {
     const pending = JSON.parse(raw);
     if (pending.token === token) {
       updateRow_(SHEETS.DRAW_ATTEMPTS, 'AttemptID', token, { Outcome: DRAW_ATTEMPT_STATUS.REDRAWN });
-      PropertiesService.getDocumentProperties().deleteProperty('pendingDraw_' + chitId);
+      PropertiesService.getScriptProperties().deleteProperty('pendingDraw_' + chitId);
     }
   }
   return { ok: true };
